@@ -32,8 +32,7 @@ class InstrumentUpdate(BaseModel):
 class FootprintCCDSchema(BaseModel):
     id: int
     instrumentid: int
-    footprint_wkt: Optional[str] = Field(None, description="WKT representation of the footprint")
-    coordinates: Optional[List[Tuple[float, float]]] = Field(None, description="Coordinates of the footprint polygon")
+    footprint: Optional[str] = Field(None, description="WKT representation of the footprint")
 
     model_config = ConfigDict(from_attributes=True)
 

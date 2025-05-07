@@ -1,6 +1,8 @@
 from fastapi import APIRouter, HTTPException, Depends, Query, Body
+from geoalchemy2 import WKBElement
 from sqlalchemy.orm import Session
 from typing import List, Optional
+from shapely.wkb import loads as wkb_loads
 import json
 import datetime
 from sqlalchemy import or_
@@ -116,6 +118,12 @@ async def get_footprints(
         filter_conditions.append(or_(*or_conditions))
     
     footprints = db.query(FootprintCCD).filter(*filter_conditions).all()
+
+    # Convert WKB to WKT for the `footprint` field
+    for footprint in footprints:
+        if isinstance(footprint.footprint, WKBElement):
+            footprint.footprint = str(wkb_loads(bytes(footprint.footprint.data)))
+
     
     # FastAPI will automatically convert SQLAlchemy models to Pydantic models
     return footprints

@@ -9,16 +9,16 @@ class GWAlert(Base):
 
     id = Column(Integer, primary_key=True)
     datecreated = Column(DateTime, default=datetime.now)
-    graceid = Column(String(50), nullable=False)
-    alternateid = Column(String(50))
-    role = Column(String(20), default='observation')  # observation or test
+    graceid = Column(String(50), nullable=False, index=True)
+    alternateid = Column(String(50), index=True)
+    role = Column(String(20), default='observation', index=True)  # observation or test
     timesent = Column(DateTime)
-    time_of_signal = Column(DateTime)
+    time_of_signal = Column(DateTime, index=True)
     packet_type = Column(Integer)
     alert_type = Column(String(50))
     detectors = Column(String(100))
     description = Column(String(500))
-    far = Column(Float, default=0)
+    far = Column(Float, default=0, index=True)
     skymap_fits_url = Column(String(500))
     distance = Column(Float)
     distance_error = Column(Float)
@@ -33,20 +33,40 @@ class GWAlert(Base):
     centralfreq = Column(Float)
     duration = Column(Float)
     avgra = Column(Float)
-    avgdec = Column(Float)
+    avgdec = Column(Float, index=True)
     observing_run = Column(String(20))
     pipeline = Column(String(50))
     search = Column(String(50))
     area_50 = Column(Float)
     area_90 = Column(Float)
     gcn_notice_id = Column(Integer)
-    ext_coinc_gcn_notice_id = Column(Integer)
     ivorn = Column(String(100))
     ext_coinc_observatory = Column(String(50))
     ext_coinc_search = Column(String(50))
+    time_difference = Column(Float)
     time_coincidence_far = Column(Float)
     time_sky_position_coincidence_far = Column(Float)
-    time_difference = Column(Float)
+
+    def getClassification(self) -> str:
+        """Get classification based on probabilities."""
+        if self.group == 'Burst':
+            return 'None (detected as burst)'
+
+        probs = [
+            {"prob": self.prob_bns if self.prob_bns else 0.0, "class": "BNS"},
+            {"prob": self.prob_nsbh if self.prob_nsbh else 0.0, "class": "NSBH"},
+            {"prob": self.prob_bbh if self.prob_bbh else 0.0, "class": "BBH"},
+            {"prob": self.prob_terrestrial if self.prob_terrestrial else 0.0, "class": "Terrestrial"},
+            {"prob": self.prob_gap if self.prob_gap else 0.0, "class": "Mass Gap"}
+        ]
+
+        sorted_probs = sorted([x for x in probs if x['prob'] > 0.01], key=lambda i: i['prob'], reverse=True)
+
+        classification = ""
+        for p in sorted_probs:
+            classification += p["class"] + ": (" + str(round(100 * p['prob'], 1)) + "%) "
+
+        return classification
 
     @staticmethod
     def graceidfromalternate(graceid: str) -> str:

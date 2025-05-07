@@ -5,6 +5,7 @@ from server.core.enums.gw_galaxy_score_type import gw_galaxy_score_type
 
 class GWAlertSchema(BaseModel):
     id: int
+    datecreated: Optional[datetime] = None
     graceid: str
     alternateid: Optional[str] = None
     role: Optional[str] = None
@@ -25,7 +26,6 @@ class GWAlertSchema(BaseModel):
     prob_terrestrial: Optional[float] = None
     prob_hasns: Optional[float] = None
     prob_hasremenant: Optional[float] = None
-    datecreated: Optional[datetime] = None
     group: Optional[str] = None
     centralfreq: Optional[float] = None
     duration: Optional[float] = None
@@ -37,7 +37,6 @@ class GWAlertSchema(BaseModel):
     area_50: Optional[float] = None
     area_90: Optional[float] = None
     gcn_notice_id: Optional[int] = None
-    ext_coinc_gcn_notice_id: Optional[int] = None
     ivorn: Optional[str] = None
     ext_coinc_observatory: Optional[str] = None
     ext_coinc_search: Optional[str] = None

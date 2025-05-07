@@ -44,11 +44,23 @@ app.add_middleware(
 )
 
 
-@app.middleware("http")
 async def lifespan_middleware(request: Request, call_next):
-    async with lifespan_context():
+    try:
+        # Initialize response here to avoid UnboundLocalError
+        response = None
+        # Your middleware logic
         response = await call_next(request)
-    return response
+        return response
+    except Exception as e:
+        # Error handling logic
+        # Make sure response is defined even in exception paths
+        if response is None:
+            # Create a default error response
+            response = JSONResponse(
+                status_code=500,
+                content={"detail": "Internal server error"}
+            )
+        return response
 
 @asynccontextmanager
 async def lifespan_context():
