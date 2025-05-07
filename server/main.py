@@ -1,11 +1,14 @@
-from fastapi import FastAPI, Request, status
+from fastapi import FastAPI, Request, status, Depends, HTTPException
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy.orm import Session
+
 import datetime
 import uvicorn
 import logging
 
 from server.config import settings
+from server.db.database import get_db
 
 from server.routes.pointing_routes import router as pointing_router
 from server.routes.gw_alert_routes import router as gw_alert_router
@@ -75,6 +78,80 @@ async def health():
         "status": "ok",
         "time": datetime.datetime.now().isoformat(),
     }
+
+
+@app.get("/service-status")
+async def service_status(db: Session = Depends(get_db)):
+    """
+    Detailed service status endpoint that checks database and Redis connections.
+
+    Returns:
+        Dict with status of database and Redis connections, plus detailed info
+    """
+    status = {
+        "database_status": "unknown",
+        "redis_status": "unknown",
+        "details": {
+            "database": {},
+            "redis": {}
+        }
+    }
+
+    # Check database connection with detailed info
+    try:
+        # Get connection parameters from settings
+        db_host = settings.DB_HOST
+        db_port = settings.DB_PORT
+        db_name = settings.DB_NAME
+
+        # Store connection info
+        status["details"]["database"] = {
+            "host": db_host,
+            "port": db_port,
+            "name": db_name
+        }
+
+        # Test actual connection
+        result = db.execute("SELECT 1").first()
+        if result and result[0] == 1:
+            status["database_status"] = "connected"
+        else:
+            status["database_status"] = "disconnected"
+    except Exception as e:
+        status["database_status"] = "disconnected"
+        status["details"]["database"]["error"] = str(e)
+
+    # Check Redis connection with detailed info
+    try:
+        # Get Redis connection parameters
+        redis_url = os.environ.get('REDIS_URL', 'redis://redis:6379/0')
+
+        # Parse the URL for debug info
+        if redis_url.startswith('redis://'):
+            redis_host = redis_url.split('redis://')[1].split(':')[0]
+            redis_port = redis_url.split(':')[-1].split('/')[0]
+        else:
+            redis_host = 'unknown'
+            redis_port = 'unknown'
+
+        # Store connection info
+        status["details"]["redis"] = {
+            "host": redis_host,
+            "port": redis_port,
+            "url": redis_url
+        }
+
+        # Test actual connection
+        redis_client = redis.from_url(redis_url)
+        if redis_client.ping():
+            status["redis_status"] = "connected"
+        else:
+            status["redis_status"] = "disconnected"
+    except Exception as e:
+        status["redis_status"] = "disconnected"
+        status["details"]["redis"]["error"] = str(e)
+
+    return status
 
 # Include routers with the API prefix
 app.include_router(pointing_router, prefix=API_V1_PREFIX)
