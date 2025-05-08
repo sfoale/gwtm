@@ -1,9 +1,19 @@
+import io
 import json
-import datetime
+
 import re
+
+import ephem
+import geoalchemy2
 import numpy as np
 import math
-from typing import List, Dict, Any, Tuple, Union, Optional
+from typing import List, Dict, Any, Tuple, Optional
+
+import requests
+
+from server import config
+from server.core.enums import pointing_status
+
 
 def isInt(s) -> bool:
     """Check if a value can be converted to an integer."""
@@ -13,6 +23,7 @@ def isInt(s) -> bool:
     except (ValueError, TypeError):
         return False
 
+
 def isFloat(s) -> bool:
     """Check if a value can be converted to a float."""
     try:
@@ -20,6 +31,7 @@ def isFloat(s) -> bool:
         return True
     except (ValueError, TypeError):
         return False
+
 
 def get_farrate_farunit(far: float) -> Tuple[float, str]:
     """
@@ -42,7 +54,7 @@ def get_farrate_farunit(far: float) -> Tuple[float, str]:
         'century': 1 / far / 3600 / 24 / 365 / 100,
         'millennium': 1 / far / 3600 / 24 / 365 / 1000,
     }
-    
+
     if far_rate_dict['second'] < 60:
         return far_rate_dict['second'], 'seconds'
     if far_rate_dict['minute'] < 60:
@@ -59,8 +71,9 @@ def get_farrate_farunit(far: float) -> Tuple[float, str]:
         return far_rate_dict['decade'], 'decades'
     if far_rate_dict['century'] < 10:
         return far_rate_dict['century'], 'centuries'
-    
+
     return far_rate_dict['millennium'], 'millennia'
+
 
 def sanatize_pointing(position: str) -> Tuple[float, float]:
     """
@@ -79,6 +92,7 @@ def sanatize_pointing(position: str) -> Tuple[float, float]:
         return ra, dec
     except (IndexError, ValueError):
         return 0.0, 0.0
+
 
 def sanatize_footprint_ccds(footprint_ccds: List[str]) -> List[List[Tuple[float, float]]]:
     """
@@ -105,11 +119,12 @@ def sanatize_footprint_ccds(footprint_ccds: List[str]) -> List[List[Tuple[float,
             continue
     return result
 
+
 def project_footprint(
-    footprint: List[Tuple[float, float]], 
-    ra: float, 
-    dec: float, 
-    pos_angle: Optional[float] = None
+        footprint: List[Tuple[float, float]],
+        ra: float,
+        dec: float,
+        pos_angle: Optional[float] = None
 ) -> List[Tuple[float, float]]:
     """
     Project a footprint to a new position with optional rotation.
@@ -128,11 +143,11 @@ def project_footprint(
     dec_vals = [p[1] for p in footprint]
     center_ra = np.mean(ra_vals)
     center_dec = np.mean(dec_vals)
-    
+
     # Calculate offsets from center
     ra_offsets = [p[0] - center_ra for p in footprint]
     dec_offsets = [p[1] - center_dec for p in footprint]
-    
+
     # Apply rotation if needed
     if pos_angle is not None and pos_angle != 0:
         angle_rad = math.radians(pos_angle)
@@ -143,19 +158,20 @@ def project_footprint(
             rotated_offsets.append((new_ra_offset, new_dec_offset))
         ra_offsets = [offset[0] for offset in rotated_offsets]
         dec_offsets = [offset[1] for offset in rotated_offsets]
-    
+
     # Apply offsets to new center
     projected_footprint = []
     for i in range(len(footprint)):
         projected_ra = ra + ra_offsets[i] / math.cos(math.radians(dec))
         projected_dec = dec + dec_offsets[i]
         projected_footprint.append((projected_ra, projected_dec))
-    
+
     # Make sure the polygon is closed
     if projected_footprint[0] != projected_footprint[-1]:
         projected_footprint.append(projected_footprint[0])
-    
+
     return projected_footprint
+
 
 def polygons2footprints(polygons: List[List[List[float]]], time: float = 0) -> List[Dict[str, Any]]:
     """
@@ -178,6 +194,7 @@ def polygons2footprints(polygons: List[List[List[float]]], time: float = 0) -> L
         })
     return footprints
 
+
 def sanatize_gal_info(galaxy_entry, galaxy_list) -> Dict[str, Any]:
     """
     Format galaxy information for display.
@@ -190,19 +207,20 @@ def sanatize_gal_info(galaxy_entry, galaxy_list) -> Dict[str, Any]:
         Formatted galaxy information as a dictionary
     """
     info_dict = {}
-    
+
     if hasattr(galaxy_entry, 'info') and galaxy_entry.info:
         try:
             info_dict = json.loads(galaxy_entry.info)
         except json.JSONDecodeError:
             info_dict = {}
-    
+
     # Add galaxy list information
     info_dict["Group"] = galaxy_list.groupname if hasattr(galaxy_list, 'groupname') else ""
     info_dict["Score"] = galaxy_entry.score if hasattr(galaxy_entry, 'score') else ""
     info_dict["Rank"] = galaxy_entry.rank if hasattr(galaxy_entry, 'rank') else ""
-    
+
     return info_dict
+
 
 def sanatize_icecube_event(event, notice) -> Dict[str, Any]:
     """
@@ -225,8 +243,9 @@ def sanatize_icecube_event(event, notice) -> Dict[str, Any]:
         "Event p-value (Bayesian)": event.event_pval_bayesian if hasattr(event, 'event_pval_bayesian') else "",
         "Event DT": event.event_dt if hasattr(event, 'event_dt') else "",
     }
-    
+
     return info_dict
+
 
 def sanatize_candidate_info(candidate, ra, dec) -> Dict[str, Any]:
     """
@@ -246,14 +265,18 @@ def sanatize_candidate_info(candidate, ra, dec) -> Dict[str, Any]:
         "TNS URL": candidate.tns_url if hasattr(candidate, 'tns_url') else "",
         "RA": ra,
         "Dec": dec,
-        "Discovery Date": candidate.discovery_date.isoformat() if hasattr(candidate, 'discovery_date') and candidate.discovery_date else "",
+        "Discovery Date": candidate.discovery_date.isoformat() if hasattr(candidate,
+                                                                          'discovery_date') and candidate.discovery_date else "",
         "Discovery Magnitude": candidate.discovery_magnitude if hasattr(candidate, 'discovery_magnitude') else "",
         "Associated Galaxy": candidate.associated_galaxy if hasattr(candidate, 'associated_galaxy') else "",
-        "Associated Galaxy Redshift": candidate.associated_galaxy_redshift if hasattr(candidate, 'associated_galaxy_redshift') else "",
-        "Associated Galaxy Distance": candidate.associated_galaxy_distance if hasattr(candidate, 'associated_galaxy_distance') else "",
+        "Associated Galaxy Redshift": candidate.associated_galaxy_redshift if hasattr(candidate,
+                                                                                      'associated_galaxy_redshift') else "",
+        "Associated Galaxy Distance": candidate.associated_galaxy_distance if hasattr(candidate,
+                                                                                      'associated_galaxy_distance') else "",
     }
-    
+
     return info_dict
+
 
 def sanatize_XRT_source_info(source) -> Dict[str, Any]:
     """
@@ -272,8 +295,9 @@ def sanatize_XRT_source_info(source) -> Dict[str, Any]:
         "Significance": source.get('significance', ''),
         "URL": source.get('url', ''),
     }
-    
+
     return info_dict
+
 
 def by_chunk(items: List[Any], n: int) -> List[List[Any]]:
     """
@@ -291,11 +315,82 @@ def by_chunk(items: List[Any], n: int) -> List[List[Any]]:
         chunks.append(items[i:i + n])
     return chunks
 
+
+def floatNone(i):
+    if i is not None:
+        try:
+            return float(i)
+        except:  # noqa: E722
+            return 0.0
+    else:
+        return None
+
+
+def pointing_crossmatch(pointing, otherpointings, dist_thresh=None):
+    if dist_thresh is None:
+
+        filtered_pointings = [x for x in otherpointings if (
+                x.status.name == pointing.status and \
+                x.instrumentid == int(pointing.instrumentid) and \
+                x.band.name == pointing.band and \
+                x.time == pointing.time and \
+                x.pos_angle == floatNone(pointing.pos_angle)
+        )]
+
+        for p in filtered_pointings:
+            p_pos = str(geoalchemy2.shape.to_shape(p.position))
+            if sanatize_pointing(p_pos) == sanatize_pointing(pointing.position):
+                return True
+
+    else:
+
+        p_ra, p_dec = sanatize_pointing(pointing.position)
+
+        filtered_pointings = [x for x in otherpointings if (
+                x.status.name == pointing.status and \
+                x.instrumentid == int(pointing.instrumentid) and \
+                x.band.name == pointing.band
+        )]
+
+        for p in filtered_pointings:
+            ra, dec = sanatize_pointing(str(geoalchemy2.shape.to_shape(p.position)))
+            sep = 206264.806 * (float(ephem.separation((ra, dec), (p_ra, p_dec))))
+            if sep < dist_thresh:
+                return True
+
+    return False
+
+
+def create_doi(payload):
+    ACCESS_TOKEN = config['ZENODO_ACCESS_KEY']
+    data = payload['data']
+    data_file = payload['data_file']
+    files = payload['files']
+    headers = payload['headers']
+
+    r = requests.post('https://zenodo.org/api/deposit/depositions', params={'access_token': ACCESS_TOKEN}, json={},
+                      headers=headers)
+    d_id = r.json()['id']
+    r = requests.post('https://zenodo.org/api/deposit/depositions/%s/files' % d_id,
+                      params={'access_token': ACCESS_TOKEN}, data=data_file, files=files)
+    r = requests.put('https://zenodo.org/api/deposit/depositions/%s' % d_id, data=json.dumps(data),
+                     params={'access_token': ACCESS_TOKEN}, headers=headers)
+    r = requests.post('https://zenodo.org/api/deposit/depositions/%s/actions/publish' % d_id,
+                      params={'access_token': ACCESS_TOKEN})
+
+    return_json = r.json()
+    try:
+        doi_url = return_json['doi_url']
+    except:  # noqa: E722
+        doi_url = None
+    return int(d_id), doi_url
+
+
 def create_pointing_doi(
-    points: List[Any], 
-    graceid: str, 
-    creators: List[Dict[str, str]], 
-    instrument_names: List[str]
+        points: List[Any],
+        graceid: str,
+        creators: List[Dict[str, str]],
+        instrument_names: List[str]
 ) -> Tuple[int, Optional[str]]:
     """
     Create a DOI for pointings.
@@ -309,53 +404,53 @@ def create_pointing_doi(
     Returns:
         Tuple of (doi_id, doi_url)
     """
-    import uuid
-    from datetime import datetime
-    
-    # Create a unique identifier
-    doi_suffix = str(uuid.uuid4())[:8]
-    doi_prefix = "10.5072"  # Test DOI prefix
-    doi = f"{doi_prefix}/gwtm.pointing.{doi_suffix}"
-    
-    # Format the current date
-    date = datetime.now().strftime("%Y-%m-%d")
-    
-    # Create a title
-    title = f"Telescope pointings for {graceid} using {', '.join(instrument_names)}"
-    
-    # Prepare metadata for DOI service
-    metadata = {
-        "doi": doi,
-        "creators": creators,
-        "titles": [{"title": title}],
-        "publisher": "Gravitational-Wave Treasure Map",
-        "publicationYear": date[:4],
-        "resourceType": {"resourceTypeGeneral": "Dataset"},
-        "descriptions": [{
-            "description": f"Telescope pointing observations for gravitational-wave event {graceid}",
-            "descriptionType": "Abstract"
-        }]
-    }
-    
-    # In a real implementation, we would make an API call to the DOI service
-    # e.g., DataCite, with the metadata
-    # Here we're simulating that
-    
-    # This would be the DOI URL from the service
-    doi_url = f"https://doi.org/{doi}"
-    
-    # This would be the ID returned from the DOI service
-    # Here we're generating a random number based on the UUID
-    doi_id = int(doi_suffix, 16) % 1000000
-    
-    return doi_id, doi_url
+
+    points_json = []
+
+    for p in points:
+        if p.status == pointing_status.completed:
+            points_json.append(p.parse)
+
+    if len(instrument_names) > 1:
+        inst_str = "These observations were taken on the"
+        for i in instrument_names:
+            if i == instrument_names[len(instrument_names) - 1]:
+                inst_str += " and " + i
+            else:
+                inst_str += " " + i + ","
+
+        inst_str += " instruments."
+    else:
+        inst_str = "These observations were taken on the " + instrument_names[0] + " instrument."
+
+    if len(points_json):
+        payload = {
+            'data': {
+                "metadata": {
+                    "title": "Submitted Completed pointings to the Gravitational Wave Treasure Map for event " + graceid,
+                    "upload_type": "dataset",
+                    "creators": creators,
+                    "description": "Attached in a .json file is the completed pointing information for " + str(
+                        len(points_json)) + " observation(s) for the EM counterpart search associated with the gravitational wave event " + graceid + ". " + inst_str
+                }
+            },
+            'data_file': {'name': 'completed_pointings_' + graceid + '.json'},
+            'files': {'file': io.StringIO(json.dumps(points_json))},
+            'headers': {"Content-Type": "application/json"},
+        }
+
+        d_id, url = create_doi(payload)
+        return d_id, url
+
+    return None, None
+
 
 def create_galaxy_score_doi(
-    galaxies: List[Any], 
-    creators: List[Dict[str, str]], 
-    reference: Optional[str], 
-    graceid: str, 
-    alert_type: str
+        galaxies: List[Any],
+        creators: List[Dict[str, str]],
+        reference: Optional[str],
+        graceid: str,
+        alert_type: str
 ) -> Tuple[int, Optional[str]]:
     """
     Create a DOI for galaxy scores.
@@ -372,18 +467,18 @@ def create_galaxy_score_doi(
     """
     import uuid
     from datetime import datetime
-    
+
     # Create a unique identifier
     doi_suffix = str(uuid.uuid4())[:8]
     doi_prefix = "10.5072"  # Test DOI prefix
     doi = f"{doi_prefix}/gwtm.galaxy.{doi_suffix}"
-    
+
     # Format the current date
     date = datetime.now().strftime("%Y-%m-%d")
-    
+
     # Create a title
     title = f"Galaxy candidates for {graceid} - {alert_type}"
-    
+
     # Prepare metadata for DOI service
     metadata = {
         "doi": doi,
@@ -397,7 +492,7 @@ def create_galaxy_score_doi(
             "descriptionType": "Abstract"
         }]
     }
-    
+
     # Add reference if provided
     if reference:
         metadata["relatedIdentifiers"] = [{
@@ -405,16 +500,16 @@ def create_galaxy_score_doi(
             "relatedIdentifierType": "DOI",
             "relationType": "References"
         }]
-    
+
     # In a real implementation, we would make an API call to the DOI service
     # e.g., DataCite, with the metadata
     # Here we're simulating that
-    
+
     # This would be the DOI URL from the service
     doi_url = f"https://doi.org/{doi}"
-    
+
     # This would be the ID returned from the DOI service
     # Here we're generating a random number based on the UUID
     doi_id = int(doi_suffix, 16) % 1000000
-    
+
     return doi_id, doi_url

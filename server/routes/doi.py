@@ -1,9 +1,6 @@
 from fastapi import APIRouter, HTTPException, Depends, Request, Response, Body
 from sqlalchemy.orm import Session
-from typing import List, Dict, Any, Optional
-from datetime import datetime
-from pydantic import BaseModel, Field
-import json
+from typing import List, Dict, Optional
 
 from server.db.database import get_db
 from server.db.models.pointing import Pointing
@@ -11,9 +8,16 @@ from server.db.models.instrument import Instrument
 from server.db.models.pointing_event import PointingEvent
 from server.db.models.gw_alert import GWAlert
 from server.db.models.users import Users
+from server.db.models.doi_author import DOIAuthor, DOIAuthorGroup
 from server.auth.auth import get_current_user
-from server.schemas.doi import DOIRequestResponse, DOIPointingsResponse, DOIPointingInfo
-
+from server.schemas.doi import (
+    DOIAuthorSchema,
+    DOIAuthorGroupSchema,
+    DOIPointingInfo,
+    DOIPointingsResponse,
+    DOIRequestResponse
+)
+from server.utils.function import create_pointing_doi
 
 router = APIRouter(tags=["DOI"])
 
@@ -23,7 +27,7 @@ async def request_doi(
         graceid: Optional[str] = Body(None, description="Grace ID of the GW event"),
         id: Optional[int] = Body(None, description="Pointing ID"),
         ids: Optional[List[int]] = Body(None, description="List of pointing IDs"),
-        doi_group_id: Optional[int] = Body(None, description="DOI author group ID"),
+        doi_group_id: Optional[str] = Body(None, description="DOI author group ID"),
         creators: Optional[List[Dict[str, str]]] = Body(None, description="List of creators for the DOI"),
         doi_url: Optional[str] = Body(None, description="Optional DOI URL if already exists"),
         db: Session = Depends(get_db),
@@ -94,17 +98,17 @@ async def request_doi(
     # Handle DOI creators
     if not creators:
         if doi_group_id:
-            # Import the DOI author model here to avoid circular imports
-            from server.db.models.doi_author import doi_author
-            valid, creators = doi_author.construct_creators(doi_group_id, user.id)
+            valid, creators_list = DOIAuthor.construct_creators(doi_group_id, user.id, db)
             if not valid:
                 raise HTTPException(
                     status_code=400,
                     detail="Invalid doi_group_id. Make sure you are the User associated with the DOI group"
                 )
+            creators = creators_list
         else:
             # Default to user as creator
-            creators = [{"name": f"{user.firstname} {user.lastname}", "affiliation": ""}]
+            user_record = db.query(Users).filter(Users.id == user.id).first()
+            creators = [{"name": f"{user_record.firstname} {user_record.lastname}", "affiliation": ""}]
     else:
         # Validate creators
         for c in creators:
@@ -121,7 +125,6 @@ async def request_doi(
         # Get the alternate form of the graceid
         gid = GWAlert.alternatefromgraceid(gid)
         # Create the DOI
-        from server.utils.function import create_pointing_doi
         doi_id, doi_url = create_pointing_doi(doi_points, gid, creators, inst_set)
 
     # Update pointing records with DOI information
@@ -174,90 +177,47 @@ async def get_doi_pointings(
     return DOIPointingsResponse(pointings=result)
 
 
-@router.post("/ajax_request_doi", response_model=str)
-async def ajax_request_doi(
-        graceid: str = Body(..., description="Grace ID of the GW event"),
-        ids: str = Body(..., description="Comma-separated list of pointing IDs"),
-        doi_group_id: Optional[str] = Body(None, description="DOI author group ID"),
-        doi_url: Optional[str] = Body(None, description="Optional DOI URL if already exists"),
+@router.get("/doi_author_groups", response_model=List[DOIAuthorGroupSchema])
+async def get_doi_author_groups(
         db: Session = Depends(get_db),
         user=Depends(get_current_user)
 ):
     """
-    AJAX endpoint for requesting a DOI for a set of pointings.
-    This endpoint maintains backward compatibility with the Flask implementation.
-
-    Parameters:
-    - graceid: Grace ID of the GW event
-    - ids: Comma-separated list of pointing IDs
-    - doi_group_id: DOI author group ID
-    - doi_url: Optional DOI URL if already exists
+    Get all DOI author groups for the current user.
 
     Returns:
-    - DOI URL as a string
+    - List of DOI author groups
     """
-    # Parse IDs from comma-separated string
-    pointing_ids = [int(x) for x in ids.split(',') if x.strip()]
+    groups = db.query(DOIAuthorGroup).filter(DOIAuthorGroup.userid == user.id).all()
+    return groups
 
-    if not pointing_ids:
-        raise HTTPException(status_code=400, detail="No pointing IDs provided")
 
-    # Normalize graceid
-    graceid = GWAlert.graceidfromalternate(graceid)
+@router.get("/doi_authors/{group_id}", response_model=List[DOIAuthorSchema])
+async def get_doi_authors(
+        group_id: int,
+        db: Session = Depends(get_db),
+        user=Depends(get_current_user)
+):
+    """
+    Get all DOI authors for a specific group.
 
-    # Get all pointings with these IDs that belong to this event
-    points = db.query(Pointing).filter(
-        Pointing.id.in_(pointing_ids),
-        Pointing.id == PointingEvent.pointingid,
-        PointingEvent.graceid == graceid
-    ).all()
+    Parameters:
+    - group_id: DOI author group ID
 
-    if not points:
-        raise HTTPException(status_code=404, detail="No valid pointings found")
+    Returns:
+    - List of DOI authors
+    """
+    # First check if the group belongs to the user
+    group = db.query(DOIAuthorGroup).filter(
+        DOIAuthorGroup.id == group_id,
+        DOIAuthorGroup.userid == user.id
+    ).first()
 
-    # Ensure user owns these pointings
-    for p in points:
-        if p.submitterid != user.id:
-            raise HTTPException(
-                status_code=403,
-                detail=f"Not authorized to request DOI for pointing {p.id}"
-            )
+    if not group:
+        raise HTTPException(
+            status_code=403,
+            detail="You don't have permission to access this DOI author group"
+        )
 
-    # Get user information
-    user_record = db.query(Users).filter(Users.id == user.id).first()
-
-    # Handle DOI creators
-    if doi_group_id:
-        # Using DOI author model from database
-        from server.db.models.doi_author import doi_author
-        valid, creators = doi_author.construct_creators(doi_group_id, user.id)
-        if not valid:
-            creators = [{"name": f"{user_record.firstname} {user_record.lastname}", "affiliation": ""}]
-    else:
-        creators = [{"name": f"{user_record.firstname} {user_record.lastname}", "affiliation": ""}]
-
-    # Get instrument names
-    insts = db.query(Instrument).filter(Instrument.id.in_([p.instrumentid for p in points]))
-    inst_set = list(set([i.instrument_name for i in insts]))
-
-    # Create DOI or use existing URL
-    if doi_url:
-        doi_id, doi_url = 0, doi_url
-    else:
-        # Get the alternate form of the graceid
-        gid = GWAlert.alternatefromgraceid(graceid)
-        # Create the DOI
-        from server.utils.function import create_pointing_doi
-        doi_id, doi_url = create_pointing_doi(points, gid, creators, inst_set)
-
-    # Update pointing records with DOI information
-    if doi_id is not None:
-        for p in points:
-            p.doi_url = doi_url
-            p.doi_id = doi_id
-
-        db.commit()
-
-    return doi_url
-
-# Note: The API prefix is handled in main.py, so we don't need to include it here
+    authors = db.query(DOIAuthor).filter(DOIAuthor.author_groupid == group_id).all()
+    return authors

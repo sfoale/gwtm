@@ -33,4 +33,4 @@ aiofiles>=0.8.0
 pytest>=7.3.1
 httpx>=0.24.1
 Werkzeug==2.0.3
-
+ephem

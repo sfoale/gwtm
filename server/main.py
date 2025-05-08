@@ -12,6 +12,8 @@ from server.db.database import get_db
 
 from server.routes.pointing import router as pointing_router
 from server.routes.gw_alert import router as gw_alert_router
+from server.routes.doi import router as doi_router
+from server.routes.event import router as event
 from server.routes.candidate import router as candidate_router
 from server.routes.instrument import router as instrument_router
 from server.routes.gw_galaxy import router as galaxy_router
@@ -172,6 +174,8 @@ app.include_router(candidate_router, prefix=API_V1_PREFIX)
 app.include_router(instrument_router, prefix=API_V1_PREFIX)
 app.include_router(galaxy_router, prefix=API_V1_PREFIX)
 app.include_router(icecube_router, prefix=API_V1_PREFIX)
+app.include_router(doi_router, prefix=API_V1_PREFIX)
+app.include_router(event, prefix=API_V1_PREFIX)
 
 # Include admin router without API prefix (matches original endpoint)
 app.include_router(admin_router)
