@@ -1,14 +1,14 @@
 from fastapi import APIRouter
-from .admin_routes import router as admin_router
-from .candidate_routes import router as candidate_router
-from .doi_routes import router as doi_router
-from .event_routes import router as event_router
-from .galaxy_routes import router as galaxy_router
-from .gw_alert_routes import router as gw_alert_router
-from .icecube_routes import router as icecube_router
-from .instrument_routes import router as instrument_router
-from .pointing_routes import router as pointing_router
-from .ui_routes import router as ui_router
+from .admin import router as admin_router
+from .candidate import router as candidate_router
+from .doi import router as doi_router
+from .event import router as event_router
+from .gw_galaxy import router as galaxy_router
+from .gw_alert import router as gw_alert_router
+from .icecube import router as icecube_router
+from .instrument import router as instrument_router
+from .pointing import router as pointing_router
+from .ui import router as ui_router
 
 
 router = APIRouter()

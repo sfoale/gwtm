@@ -10,14 +10,14 @@ import logging
 from server.config import settings
 from server.db.database import get_db
 
-from server.routes.pointing_routes import router as pointing_router
-from server.routes.gw_alert_routes import router as gw_alert_router
-from server.routes.candidate_routes import router as candidate_router
-from server.routes.instrument_routes import router as instrument_router
-from server.routes.galaxy_routes import router as galaxy_router
-from server.routes.icecube_routes import router as icecube_router
-from server.routes.admin_routes import router as admin_router
-from server.routes.ui_routes import router as ui_router
+from server.routes.pointing import router as pointing_router
+from server.routes.gw_alert import router as gw_alert_router
+from server.routes.candidate import router as candidate_router
+from server.routes.instrument import router as instrument_router
+from server.routes.gw_galaxy import router as galaxy_router
+from server.routes.icecube import router as icecube_router
+from server.routes.admin import router as admin_router
+from server.routes.ui import router as ui_router
 from contextlib import asynccontextmanager
 
 logging.basicConfig(level=logging.DEBUG)
