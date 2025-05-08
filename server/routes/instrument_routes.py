@@ -13,10 +13,8 @@ from server.db.models.instrument import Instrument, FootprintCCD
 from server.db.models.pointing import Pointing
 from server.schemas.instrument import (
     InstrumentSchema, 
-    FootprintCCDSchema, 
-    InstrumentWithFootprints,
+    FootprintCCDSchema,
     InstrumentCreate,
-    InstrumentUpdate,
     FootprintCCDCreate
 )
 from server.auth.auth import get_current_user
@@ -128,40 +126,7 @@ async def get_footprints(
     # FastAPI will automatically convert SQLAlchemy models to Pydantic models
     return footprints
 
-@router.get("/instrument_details/{instrument_id}", response_model=InstrumentWithFootprints)
-async def get_instrument_details(
-    instrument_id: int,
-    db: Session = Depends(get_db),
-    user = Depends(get_current_user)
-):
-    """
-    Get detailed information about a specific instrument, including its footprints.
-    
-    Parameters:
-    - instrument_id: The ID of the instrument
-    
-    Returns an instrument object with its associated footprints
-    """
-    # Get the instrument
-    instrument = db.query(Instrument).filter(Instrument.id == instrument_id).first()
-    if not instrument:
-        raise HTTPException(status_code=404, detail=f"Instrument with ID {instrument_id} not found")
-    
-    # Get the instrument's footprints
-    footprints = db.query(FootprintCCD).filter(FootprintCCD.instrumentid == instrument_id).all()
-    
-    # Create the response with the nested object
-    instrument_with_footprints = InstrumentWithFootprints(
-        id=instrument.id,
-        instrument_name=instrument.instrument_name,
-        nickname=instrument.nickname,
-        instrument_type=instrument.instrument_type,
-        datecreated=instrument.datecreated,
-        submitterid=instrument.submitterid,
-        footprints=footprints  # FastAPI will convert the SQLAlchemy models to Pydantic models
-    )
-    
-    return instrument_with_footprints
+
 
 @router.post("/instruments", response_model=InstrumentSchema)
 async def create_instrument(

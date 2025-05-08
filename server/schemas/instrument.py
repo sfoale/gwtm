@@ -40,13 +40,3 @@ class FootprintCCDCreate(BaseModel):
     instrumentid: int
     footprint: str = Field(..., description="WKT representation of the footprint")
 
-class InstrumentWithFootprints(BaseModel):
-    id: int
-    instrument_name: str
-    nickname: Optional[str] = None
-    instrument_type: Optional[instrument_type_enum] = None
-    datecreated: Optional[datetime] = None
-    submitterid: Optional[int] = None
-    footprints: List[FootprintCCDSchema] = []
-
-    model_config = ConfigDict(from_attributes=True)
