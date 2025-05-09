@@ -6,7 +6,7 @@ from typing import List, Optional, Dict, Any
 
 from server.db.models.pointing import Pointing
 from server.db.models.instrument import Instrument
-from server.schemas.doi import DOIAuthor
+from server.schemas.doi import DOIAuthorSchema
 from server.schemas.pointing import PointingSchema, PointingResponse, PointingCreate
 from server.db.database import get_db
 from server.auth.auth import get_current_user
