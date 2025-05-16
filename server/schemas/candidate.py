@@ -1,4 +1,4 @@
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 from typing import Optional, List, Any, Literal, Dict, Union
 from datetime import datetime
 from geoalchemy2.types import WKBElement
@@ -68,13 +68,17 @@ class CandidateRequest(BaseModel):
     associated_galaxy_redshift: Optional[float] = None
     associated_galaxy_distance: Optional[float] = None
 
-    @field_validator("*", mode="before")
-    @classmethod
-    def validate_position_data(cls, values):
-        """Validate that either position or ra/dec are provided"""
-        if "position" not in values and ("ra" not in values or "dec" not in values):
+    @model_validator(mode='after')
+    def validate_position_data(self):
+        ra_dec_provided = sum([
+            self.ra is not None,
+            self.dec is not None
+        ]) > 0
+        position_provided = self.position is not None
+        if ra_dec_provided or position_provided:
+            return self
+        else:
             raise ValueError("Either position or both ra and dec must be provided")
-        return values
 
 
 class PostCandidateRequest(BaseModel):
@@ -83,13 +87,19 @@ class PostCandidateRequest(BaseModel):
     candidate: Optional[CandidateRequest] = None
     candidates: Optional[List[CandidateRequest]] = None
 
-    @field_validator("*", mode="before")
-    @classmethod
-    def check_candidate_or_candidates(cls, values):
-        """Validate that either candidate or candidates is provided"""
-        if not values.get('candidate') and not values.get('candidates'):
-            raise ValueError("Either 'candidate' or 'candidates' must be provided")
-        return values
+    @model_validator(mode='after')
+    def validate_exactly_one_candidate_field(self):
+        fields_provided = sum([
+            self.candidate is not None,
+            self.candidates is not None and len(self.candidates) > 0
+        ])
+
+        if fields_provided == 0:
+            raise ValueError("Must provide either 'candidate' or 'candidates'")
+        elif fields_provided > 1:
+            raise ValueError("Cannot provide both 'candidate' and 'candidates'")
+
+        return self
 
 
 class CandidateResponse(BaseModel):
@@ -124,10 +134,19 @@ class CandidateUpdateField(BaseModel):
     energy_regime: Optional[List[float]] = None
     energy_unit: Optional[str] = None
 
+    @field_validator("discovery_date")
+    def validate_discovery_date(cls, value):
+        if value is not None:
+            try:
+                datetime.fromisoformat(value)
+            except ValueError:
+                raise ValueError("discovery_date must be a valid ISO 8601 datetime string")
+        return value
+
 class PutCandidateRequest(BaseModel):
     """Request model for updating a candidate"""
     id: int
-    payload: CandidateUpdateField
+    candidate: CandidateUpdateField
 
 class PutCandidateSuccessResponse(BaseModel):
     """Success response model"""

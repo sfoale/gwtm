@@ -23,6 +23,7 @@ from server.core.enums.pointing_status import pointing_status
 from server.db.models.users import Users
 from sqlalchemy import or_
 
+
 router = APIRouter(tags=["pointings"])
 
 
@@ -927,8 +928,8 @@ async def cancel_all(
         # Normalize the graceid
         graceid = GWAlert.graceidfromalternate(graceid)
         # Add the join condition
-        filter_conditions.append(Pointing.id == models.pointing_event.pointingid)
-        filter_conditions.append(models.pointing_event.graceid == graceid)
+        filter_conditions.append(Pointing.id == PointingEvent.pointingid)
+        filter_conditions.append(PointingEvent.graceid == graceid)
     
     # Query the pointings
     pointings = db.query(Pointing).filter(*filter_conditions)

@@ -25,20 +25,21 @@ from server.auth.auth import get_current_user
 
 router = APIRouter(tags=["candidates"])
 
+
 @router.get("/candidate", response_model=List[CandidateSchema])
 async def get_candidates(
-    query_params: GetCandidateQueryParams = Depends(),
-    db: Session = Depends(get_db),
-    user = Depends(get_current_user)
+        query_params: GetCandidateQueryParams = Depends(),
+        db: Session = Depends(get_db),
+        user=Depends(get_current_user)
 ):
     """
     Get candidates with optional filters.
     """
     filter_conditions = []
-    
+
     if query_params.id:
         filter_conditions.append(GWCandidate.id == query_params.id)
-    
+
     if query_params.ids:
         try:
             ids_list = None
@@ -50,63 +51,63 @@ async def get_candidates(
                 filter_conditions.append(GWCandidate.id.in_(ids_list))
         except:
             pass
-    
+
     if query_params.graceid:
         graceid = GWAlert.graceidfromalternate(query_params.graceid)
         filter_conditions.append(GWCandidate.graceid == graceid)
-    
+
     if query_params.userid:
         filter_conditions.append(GWCandidate.submitterid == query_params.userid)
-    
+
     if query_params.submitted_date_after:
         try:
             parsed_date_after = date_parse(query_params.submitted_date_after)
             filter_conditions.append(GWCandidate.datecreated >= parsed_date_after)
         except:
             pass
-    
+
     if query_params.submitted_date_before:
         try:
             parsed_date_before = date_parse(query_params.submitted_date_before)
             filter_conditions.append(GWCandidate.datecreated <= parsed_date_before)
         except:
             pass
-    
+
     if query_params.discovery_magnitude_gt is not None:
         filter_conditions.append(GWCandidate.discovery_magnitude >= query_params.discovery_magnitude_gt)
-    
+
     if query_params.discovery_magnitude_lt is not None:
         filter_conditions.append(GWCandidate.discovery_magnitude <= query_params.discovery_magnitude_lt)
-    
+
     if query_params.discovery_date_after:
         try:
             parsed_date_after = date_parse(query_params.discovery_date_after)
             filter_conditions.append(GWCandidate.discovery_date >= parsed_date_after)
         except:
             pass
-    
+
     if query_params.discovery_date_before:
         try:
             parsed_date_before = date_parse(query_params.discovery_date_before)
             filter_conditions.append(GWCandidate.discovery_date <= parsed_date_before)
         except:
             pass
-    
+
     if query_params.associated_galaxy_name:
         filter_conditions.append(GWCandidate.associated_galaxy.contains(query_params.associated_galaxy_name))
-    
+
     if query_params.associated_galaxy_redshift_gt is not None:
         filter_conditions.append(GWCandidate.associated_galaxy_redshift >= query_params.associated_galaxy_redshift_gt)
-    
+
     if query_params.associated_galaxy_redshift_lt is not None:
         filter_conditions.append(GWCandidate.associated_galaxy_redshift <= query_params.associated_galaxy_redshift_lt)
-    
+
     if query_params.associated_galaxy_distance_gt is not None:
         filter_conditions.append(GWCandidate.associated_galaxy_distance >= query_params.associated_galaxy_distance_gt)
-    
+
     if query_params.associated_galaxy_distance_lt is not None:
         filter_conditions.append(GWCandidate.associated_galaxy_distance <= query_params.associated_galaxy_distance_lt)
-    
+
     candidates = db.query(GWCandidate).filter(*filter_conditions).all()
 
     for candidate in candidates:
@@ -120,7 +121,7 @@ async def get_candidates(
 
 @router.post("/candidate", response_model=CandidateResponse)
 async def post_gw_candidates(
-        request: CandidateRequest,
+        post_request: PostCandidateRequest,
         db: Session = Depends(get_db),
         user=Depends(get_current_user)
 ):
@@ -130,31 +131,9 @@ async def post_gw_candidates(
     This endpoint accepts either a single candidate or multiple candidates
     for a gravitational wave event.
     """
-    # Try to parse the request both ways - as a Pydantic model or as raw JSON
-    try:
-        # First try to parse as raw JSON to maintain compatibility
-        data = await request.json()
-
-        # Try to validate using our Pydantic model
-        post_request = PostCandidateRequest.parse_obj(data)
-        graceid = post_request.graceid
-        candidate = post_request.candidate
-        candidates = post_request.candidates
-
-    except JSONDecodeError:
-        raise HTTPException(
-            status_code=400,
-            detail="Whoaaaa that JSON is a little wonky"
-        )
-    except ValueError as e:
-        # Handle Pydantic validation errors
-        raise HTTPException(
-            status_code=400,
-            detail=str(e)
-        )
 
     # Validate that the graceid exists
-    valid_alerts = db.query(GWAlert).filter(GWAlert.graceid == graceid).all()
+    valid_alerts = db.query(GWAlert).filter(GWAlert.graceid == post_request.graceid).all()
     if len(valid_alerts) == 0:
         raise HTTPException(
             status_code=400,
@@ -164,43 +143,49 @@ async def post_gw_candidates(
     errors = []
     warnings = []
     valid_candidates = []
+    candidate_ids = []
 
     # Process single candidate
-    if candidate:
-        gwc = GWCandidate()
-        # Convert Pydantic model to dict for the from_json method
-        candidate_dict = candidate.dict()
-        validation_result = gwc.from_json(candidate_dict, graceid, user.id)
-
-        if validation_result.valid:
-            valid_candidates.append(gwc)
-            if len(validation_result.warnings) > 0:
-                warnings.append(["Object: " + json.dumps(candidate_dict), validation_result.warnings])
-            db.add(gwc)
-        else:
-            errors.append(["Object: " + json.dumps(candidate_dict), validation_result.errors])
+    if post_request.candidate:
+        valid_candidates.append(post_request.candidate)
 
     # Process multiple candidates
-    elif candidates:
-        for candidate_item in candidates:
-            gwc = GWCandidate()
-            # Convert Pydantic model to dict for the from_json method
-            candidate_dict = candidate_item.dict()
-            validation_result = gwc.from_json(candidate_dict, graceid, user.id)
+    elif post_request.candidates:
+        for candidate in post_request.candidates:
+            valid_candidates.append(candidate)
 
-            if validation_result.valid:
-                valid_candidates.append(gwc)
-                if len(validation_result.warnings) > 0:
-                    warnings.append(["Object: " + json.dumps(candidate_dict), validation_result.warnings])
-                db.add(gwc)
-            else:
-                errors.append(["Object: " + json.dumps(candidate_dict), validation_result.errors])
+    for candidate in valid_candidates:
+        print(f"Candidate {candidate}")
+        print(f"Candidate ra {candidate.ra} dec {candidate.dec}")
 
-    db.flush()
+        # Validate the candidate
+        new_candidate = GWCandidate(
+            graceid=post_request.graceid,
+            submitterid=user.id,
+            candidate_name=candidate.candidate_name,
+            tns_name=candidate.tns_name,
+            tns_url=candidate.tns_url,
+            position=shapely.geometry.Point(candidate.ra,
+                                            candidate.dec).wkt if candidate.ra is not None and candidate.dec is not None else candidate.position,
+            discovery_date=candidate.discovery_date,
+            discovery_magnitude=candidate.discovery_magnitude,
+            magnitude_central_wave=candidate.magnitude_central_wave,
+            magnitude_bandwidth=candidate.magnitude_bandwidth,
+            magnitude_unit=candidate.magnitude_unit,
+            magnitude_bandpass=candidate.magnitude_bandpass,
+            associated_galaxy=candidate.associated_galaxy,
+            associated_galaxy_redshift=candidate.associated_galaxy_redshift,
+            associated_galaxy_distance=candidate.associated_galaxy_distance
+        )
+
+        db.add(new_candidate)
+        db.flush()
+        candidate_ids.append(new_candidate.id)
+
     db.commit()
 
     return CandidateResponse(
-        candidate_ids=[x.id for x in valid_candidates],
+        candidate_ids=candidate_ids,
         ERRORS=errors,
         WARNINGS=warnings
     )
@@ -234,71 +219,62 @@ async def update_candidate(
             detail="Error: Unauthorized. Unable to alter other user's records"
         )
 
-    # Get the current candidate data
-    position = None
-    if candidate.position:
-        position = shapely.wkb.loads(bytes(candidate.position.data))
+    update = request.candidate.dict(exclude_unset=True)
+    # Copy values from the Pydantic schema to the SQLAlchemy model
+    for key, value in update.items():
+        if hasattr(candidate, key):
+            setattr(candidate, key, value)
 
-    # Convert to dictionary for updating
-    candidate_dict = candidate.parse  # Get the dictionary representation of the candidate
+    position = candidate.position
 
-    # Convert Pydantic model to dict and update the candidate dict
-    payload_dict = payload.dict(exclude_unset=True)  # Only include fields that were explicitly set
+    # Update ra or dec in the wkt string position
+    if "ra" in update or "dec" in update:
+        if update["ra"] is not None and update["dec"] is not None:
+            position = shapely.geometry.Point(update["ra"], update["dec"]).wkt
+            candidate.position = position
+        elif update["ra"] is not None:
+            position = shapely.geometry.Point(update["ra"], candidate.dec).wkt
+            candidate.position = position
+        elif update["dec"] is not None:
+            position = shapely.geometry.Point(candidate.ra, update["dec"]).wkt
+            candidate.position = position
 
-    # Update the candidate dictionary
-    candidate_dict.update(
-        (str(key).lower(), value) for key, value in payload_dict.items()
-        if value is not None  # Only update non-None values
+    db.commit()
+    db.refresh(candidate)
+
+    # copy the updated candidate to CandidateUpdateField object
+    candidate_dict = {
+        "graceid": candidate.graceid,
+        "submitterid": candidate.submitterid,
+        "candidate_name": candidate.candidate_name,
+        "datecreated": candidate.datecreated,
+        "tns_name": candidate.tns_name,
+        "tns_url": candidate.tns_url,
+        # convert position from wkb to wkt and then to string
+        "position": str(shapely.wkb.loads(bytes(candidate.position.data))),
+        # convert discovery_date to string
+        "discovery_date": candidate.discovery_date.isoformat() if candidate.discovery_date else None,
+        "discovery_magnitude": candidate.discovery_magnitude,
+        "magnitude_central_wave": candidate.magnitude_central_wave,
+        "magnitude_bandwidth": candidate.magnitude_bandwidth,
+        "magnitude_unit": candidate.magnitude_unit,
+        "magnitude_bandpass": candidate.magnitude_bandpass,
+        "associated_galaxy": candidate.associated_galaxy,
+        "associated_galaxy_redshift": candidate.associated_galaxy_redshift,
+        "associated_galaxy_distance": candidate.associated_galaxy_distance
+    }
+    # Convert to CandidateUpdateField instance
+    updated_candidate = CandidateUpdateField(**candidate_dict)
+
+    return PutCandidateRequest(
+        id=request.id,
+        candidate=updated_candidate
     )
-
-    # Special handling for position/ra/dec fields
-    if "ra" in payload_dict or "dec" in payload_dict:
-        # If ra or dec are updated, remove the position field to regenerate it
-        if "position" in candidate_dict:
-            del candidate_dict["position"]
-    elif "position" not in payload_dict and position is not None:
-        # If position is not being updated, keep the original position
-        candidate_dict["position"] = str(position)
-
-    # Validate the updated data
-    gwc = GWCandidate()
-    validation_result = gwc.from_json(candidate_dict, candidate_dict["graceid"], candidate.submitterid)
-
-    if validation_result.valid:
-        # List of editable columns - make sure this matches what your model accepts
-        editable_columns = [
-            "graceid", "candidate_name", "tns_name", "tns_url", "position", "discovery_date",
-            "discovery_magnitude", "magnitude_central_wave", "magnitude_bandwidth", "magnitude_unit",
-            "magnitude_bandpass", "associated_galaxy", "associated_galaxy_redshift", "associated_galaxy_distance"
-        ]
-
-        # Update the candidate with validated values
-        updated_model = gwc.__dict__
-        for key, value in updated_model.items():
-            if key in editable_columns and key in payload_dict:
-                setattr(candidate, key, value)
-
-        db.commit()
-        db.refresh(candidate)
-
-        # Convert to schema instance
-        return CandidateUpdateSuccessResponse(
-            message="success",
-            candidate=CandidateSchema.from_orm(candidate)
-        )
-    else:
-        # Return failure with errors
-        return CandidateUpdateFailureResponse(
-            message="failure",
-            errors=[validation_result.errors]
-        )
-
-
 
 
 @router.delete("/candidate", response_model=DeleteCandidateResponse)
 async def delete_candidates(
-        delete_params: DeleteCandidateParams = Depends(),
+        delete_params: DeleteCandidateParams = Body(..., description="Fields to delete"),
         db: Session = Depends(get_db),
         user=Depends(get_current_user)
 ):
