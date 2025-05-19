@@ -3,6 +3,7 @@ from typing import Optional, List, Any, Literal, Dict, Union
 from datetime import datetime
 from geoalchemy2.types import WKBElement
 from typing_extensions import Annotated
+from server.core.enums.depth_unit import depth_unit as depth_unit_enum
 
 class CandidateSchema(BaseModel):
     id: int
@@ -54,7 +55,7 @@ class CandidateRequest(BaseModel):
     tns_url: Optional[str] = None
     discovery_date: str
     discovery_magnitude: float
-    magnitude_unit: str
+    magnitude_unit: Union[depth_unit_enum, str, int]
     magnitude_bandpass: Optional[str] = None
     magnitude_central_wave: Optional[float] = None
     magnitude_bandwidth: Optional[float] = None
@@ -68,6 +69,54 @@ class CandidateRequest(BaseModel):
     associated_galaxy_redshift: Optional[float] = None
     associated_galaxy_distance: Optional[float] = None
 
+
+    @field_validator("discovery_date")
+    def validate_discovery_date(cls, value):
+        try:
+            datetime.fromisoformat(value)
+        except ValueError:
+            raise ValueError("Invalid discovery_date format. Must be a valid ISO 8601 datetime string.")
+        return value
+
+
+    @field_validator("magnitude_unit", mode="before")
+    @classmethod
+    def validate_magnitude_unit(cls, value):
+        """
+        Validate magnitude unit, accepting both string and enum values.
+
+        Args:
+            value: Input magnitude unit (string or enum)
+
+        Returns:
+            depth_unit_enum: Validated enum value
+
+        Raises:
+            ValueError if the input is not a valid magnitude unit
+        """
+        if isinstance(value, depth_unit_enum):
+            return value
+
+        if isinstance(value, str):
+            try:
+                # Try converting string to enum by name
+                return depth_unit_enum[value]
+            except KeyError:
+                # If name lookup fails, check if it can be converted from integer
+                try:
+                    return depth_unit_enum(int(value))
+                except (ValueError, TypeError):
+                    raise ValueError(f"Invalid magnitude unit: {value}. "
+                                     f"Must be one of {list(depth_unit_enum.__members__.keys())}")
+
+        if isinstance(value, int):
+            try:
+                return depth_unit_enum(value)
+            except ValueError:
+                raise ValueError(f"Invalid magnitude unit value: {value}")
+
+        raise ValueError(f"Invalid magnitude unit type: {type(value)}")
+
     @model_validator(mode='after')
     def validate_position_data(self):
         ra_dec_provided = sum([
@@ -79,6 +128,13 @@ class CandidateRequest(BaseModel):
             return self
         else:
             raise ValueError("Either position or both ra and dec must be provided")
+
+    model_config = ConfigDict(
+        from_attributes=True,
+        json_encoders={
+            depth_unit_enum: lambda v: v.name if v else None
+        }
+    )
 
 
 class PostCandidateRequest(BaseModel):

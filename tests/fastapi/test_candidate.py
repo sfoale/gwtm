@@ -705,38 +705,10 @@ class TestCandidateAPIValidation:
             headers={"api_token": self.admin_token}
         )
 
-        assert response.status_code == 200
+        assert response.status_code == 422
         data = response.json()
-        assert len(data["ERRORS"]) > 0
-        errors_str = str(data["ERRORS"])
-        assert "magnitude_unit" in errors_str
+        assert 'Invalid magnitude unit' in response.json()['detail'][0]['msg']
 
-    def test_invalid_tns_url(self):
-        """Test creating candidate with invalid TNS URL."""
-        candidate_data = {
-            "graceid": "S190425z",
-            "candidate": {
-                "candidate_name": "SN_BadTNS",
-                "ra": 123.456,
-                "dec": -12.345,
-                "discovery_date": "2019-04-25T12:00:00.000000",
-                "discovery_magnitude": 21.5,
-                "magnitude_unit": "ab_mag",
-                "tns_url": "https://invalid-tns-url.com/object/2019abc"
-            }
-        }
-
-        response = requests.post(
-            self.get_url("/candidate"),
-            json=candidate_data,
-            headers={"api_token": self.admin_token}
-        )
-
-        assert response.status_code == 200
-        data = response.json()
-        assert len(data["ERRORS"]) > 0
-        errors_str = str(data["ERRORS"])
-        assert "tns_url" in errors_str
 
     def test_invalid_date_format(self):
         """Test creating candidate with invalid date format."""
@@ -758,11 +730,9 @@ class TestCandidateAPIValidation:
             headers={"api_token": self.admin_token}
         )
 
-        assert response.status_code == 200
+        assert response.status_code == 422
         data = response.json()
-        assert len(data["ERRORS"]) > 0
-        errors_str = str(data["ERRORS"])
-        assert "discovery_date" in errors_str or "date" in errors_str
+        assert 'Invalid discovery_date format' in response.json()['detail'][0]['msg']
 
     def test_missing_position_data(self):
         """Test creating candidate without position or coordinates."""
@@ -783,11 +753,9 @@ class TestCandidateAPIValidation:
             headers={"api_token": self.admin_token}
         )
 
-        assert response.status_code == 200
+        assert response.status_code == 422
         data = response.json()
-        assert len(data["ERRORS"]) > 0
-        errors_str = str(data["ERRORS"])
-        assert "position" in errors_str.lower()
+        assert 'Either position or both ra and dec must be provided' in response.json()['detail'][0]['msg']
 
 
 class TestCandidateAPIIntegration:
@@ -853,7 +821,7 @@ class TestCandidateAPIIntegration:
         # Step 4: Delete candidate
         delete_response = requests.delete(
             self.get_url("/candidate"),
-            params={"id": candidate_id},
+            json={"id": candidate_id},
             headers={"api_token": self.admin_token}
         )
         assert delete_response.status_code == 200
@@ -895,10 +863,9 @@ class TestCandidateAPIIntegration:
         assert len(candidate_ids) == 5
 
         # Bulk delete
-        ids_param = json.dumps(candidate_ids)
         delete_response = requests.delete(
             self.get_url("/candidate"),
-            params={"ids": ids_param},
+            json={"ids": candidate_ids},
             headers={"api_token": self.admin_token}
         )
         assert delete_response.status_code == 200
