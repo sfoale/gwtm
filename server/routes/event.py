@@ -8,7 +8,7 @@ from server.db.database import get_db
 from server.db.models.gw_alert import GWAlert
 from server.db.models.candidate import GWCandidate
 from server.schemas.gw_alert import GWAlertSchema, GWCandidateSchema
-from server.auth.auth import get_current_user, get_admin_user
+from server.auth.auth import get_current_user
 
 router = APIRouter(tags=["Events"])
 
