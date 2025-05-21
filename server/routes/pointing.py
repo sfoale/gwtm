@@ -7,7 +7,7 @@ from typing import List, Optional, Dict, Any
 from server.db.models.pointing import Pointing
 from server.db.models.instrument import Instrument
 from server.schemas.doi import DOIAuthorSchema
-from server.schemas.pointing import PointingSchema, PointingResponse
+from server.schemas.pointing import PointingSchema, PointingResponse, PointingUpdate
 from server.db.database import get_db
 from server.auth.auth import get_current_user
 from server.db.models.gw_alert import GWAlert
@@ -860,8 +860,7 @@ def get_pointings(
 
 @router.post("/update_pointings")
 async def update_pointings(
-    status: str, 
-    ids: List[int], 
+    update_pointing: PointingUpdate,
     db: Session = Depends(get_db),
     user = Depends(get_current_user)
 ):
@@ -875,19 +874,21 @@ async def update_pointings(
     Returns:
     - Message with the number of updated pointings
     """
-    if status != "cancelled":
+    print(f'payload is {update_pointing}')
+
+    if update_pointing.status != "cancelled":
         raise HTTPException(status_code=400, detail="Only 'cancelled' status is allowed.")
     try:
         # Add a filter to ensure user can only update their own pointings
         pointings = db.query(Pointing).filter(
-            Pointing.id.in_(ids),
+            Pointing.id.in_(update_pointing.ids),
             Pointing.submitterid == user.id,
             Pointing.status == "planned"  # Only planned pointings can be cancelled
         ).all()
         
         for pointing in pointings:
-            pointing.status = status
-            pointing.dateupdated = datetime.datetime.now()
+            pointing.status = update_pointing.status
+            pointing.dateupdated = datetime.now()
             
         db.commit()
         return {"message": f"Updated {len(pointings)} pointings successfully."}
@@ -940,7 +941,7 @@ async def cancel_all(
     # Update the status
     for pointing in pointings:
         pointing.status = "cancelled"
-        pointing.dateupdated = datetime.datetime.now()
+        pointing.dateupdated = datetime.now()
     
     db.commit()
     

@@ -128,3 +128,15 @@ class PointingSchema(PointingBase):
             datetime: lambda v: v.isoformat() if v else None,
         }
     )
+
+class PointingUpdate(BaseModel):
+    """Schema for updating a pointing."""
+    status: Optional[Union[pointing_status_enum, str]] = None
+    ids: Optional[List[int]] = None
+
+    @field_validator("status", mode="before")
+    @classmethod
+    def validate_status(cls, value):
+        if isinstance(value, pointing_status_enum):
+            return value.value  # Convert enum to its name (e.g., "completed")
+        return value

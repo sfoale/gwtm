@@ -550,7 +550,7 @@ class TestPointingEndpoints:
         }
 
         response = requests.post(
-            self.get_url("/pointings"),
+            self.get_url("/update_pointings"),
             json=update_data,
             headers={"api_token": self.admin_token})
 
@@ -571,7 +571,7 @@ class TestPointingEndpoints:
                     "dec": 5.0 + i,
                     "instrumentid": 3,  # Use Mock Radio Dish
                     "depth": 24.0,
-                    "depth_unit": "aASE_mag",
+                    "depth_unit": "ab_mag",
                     "time": f"2019-04-25T18:{i:02d}:00.000000",
                     "status": "planned",
                     "band": "V"
@@ -635,6 +635,7 @@ class TestPointingEndpoints:
         doi_data = {
             "graceid": "S190425z",
             "ids": pointing_ids,
+            "request_doi": True,
             "creators": [
                 {
                     "name": "Test Researcher",
@@ -645,7 +646,7 @@ class TestPointingEndpoints:
 
         response = requests.post(
             self.get_url("/pointings"),
-            json=doi_data,
+            json=json.dumps(doi_data),
             headers={"api_token": self.admin_token})
 
         assert response.status_code == 200
@@ -657,12 +658,12 @@ class TestPointingEndpoints:
         url = self.get_url("/pointings")
 
         # Request without API token
-        response = self.session.get(url)
+        response = requests.get(url)
         assert response.status_code == 401
 
         # Request with invalid API token
         invalid_headers = {"api_token": "invalid_token"}
-        response = self.session.get(url, headers=invalid_headers)
+        response = requests.get(url, headers=invalid_headers)
         assert response.status_code == 401
 
     def test_get_pointings_with_existing_api_tokens(self):
@@ -670,15 +671,15 @@ class TestPointingEndpoints:
         url = self.get_url("/pointings")
 
         # Test with admin token
-        response = self.session.get(url, headers=self.admin_headers)
+        response = requests.get(url, headers={"api_token": self.admin_token})
         assert response.status_code == 200
 
         # Test with scientist token
-        response = self.session.get(url, headers=self.sci_headers)
+        response = requests.get(url, headers={"api_token": self.scientist_token})
         assert response.status_code == 200
 
         # Test with regular user token
-        response = self.session.get(url, headers=self.headers)
+        response = requests.get(url, headers={"api_token": self.user_token})
         assert response.status_code == 200
 
     def test_get_pointings_by_specific_coordinates(self):
@@ -687,7 +688,7 @@ class TestPointingEndpoints:
 
         # Test data has pointings around these coordinates
         params = {"ids": "[1]"}  # pointing 1 is at (123.456, -12.345)
-        response = self.session.get(url, params=params, headers=self.headers)
+        response = requests.get(url, json=params, headers={"api_token": self.admin_token})
 
         assert response.status_code == 200
         data = response.json()
