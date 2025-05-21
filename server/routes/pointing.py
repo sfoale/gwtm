@@ -7,7 +7,7 @@ from typing import List, Optional, Dict, Any
 from server.db.models.pointing import Pointing
 from server.db.models.instrument import Instrument
 from server.schemas.doi import DOIAuthorSchema
-from server.schemas.pointing import PointingSchema, PointingResponse, PointingCreate
+from server.schemas.pointing import PointingSchema, PointingResponse
 from server.db.database import get_db
 from server.auth.auth import get_current_user
 from server.db.models.gw_alert import GWAlert
@@ -141,8 +141,9 @@ def validate_pointing(pointing, data, dbinsts, user_id, planned_pointings, other
     # Validate depth unit
     if hasattr(data, 'depth_unit') and data.depth_unit:
         pointing.depth_unit = data.depth_unit
-    else:
-        result.errors.append("depth_unit is required")
+    # else:
+    #     print(f"data is {data}")
+    #     result.errors.append("depth_unit is required")
 
     # Validate depth error
     if hasattr(data, 'depth_err') and data.depth_err is not None:
@@ -183,6 +184,7 @@ def validate_pointing(pointing, data, dbinsts, user_id, planned_pointings, other
 
     # Set validation result
     result.valid = len(result.errors) == 0
+    print(f"Validation result: {result.valid} Errors:{result.errors} Warnings:{result.warnings}") # Debugging purposes
     return result
 
 
@@ -208,8 +210,8 @@ def get_pointings_from_ids(ids, filter_conditions, db):
 @router.post("/pointings", response_model=PointingResponse)
 async def add_pointings(
         graceid: str = Body(..., description="Grace ID of the GW event"),
-        pointing: Optional[PointingCreate] = Body(None, description="Single pointing object"),
-        pointings: Optional[List[PointingCreate]] = Body(None, description="List of pointing objects"),
+        pointing: Optional[PointingSchema] = Body(None, description="Single pointing object"),
+        pointings: Optional[List[PointingSchema]] = Body(None, description="List of pointing objects"),
         request_doi: Optional[bool] = Body(False, description="Whether to request a DOI"),
         creators: Optional[List[Dict[str, str]]] = Body(None, description="List of creators for the DOI"),
         doi_group_id: Optional[str] = Body(None, description="DOI author group ID"),
@@ -298,7 +300,7 @@ async def add_pointings(
                 warnings.append(["Object: " + pointing.model_dump_json(), validation.warnings])
             db.add(mp)
         else:
-            errors.append(["Object: " + pointing, validation.errors])
+            errors.append(["Errors validating pointing: " , validation.errors])
 
     # Process multiple pointings
     elif pointings:

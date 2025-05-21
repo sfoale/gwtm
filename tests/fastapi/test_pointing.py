@@ -571,7 +571,7 @@ class TestPointingEndpoints:
                     "dec": 5.0 + i,
                     "instrumentid": 3,  # Use Mock Radio Dish
                     "depth": 24.0,
-                    "depth_unit": "ab_mag",
+                    "depth_unit": "aASE_mag",
                     "time": f"2019-04-25T18:{i:02d}:00.000000",
                     "status": "planned",
                     "band": "V"
@@ -654,7 +654,7 @@ class TestPointingEndpoints:
 
     def test_pointing_unauthorized_access(self):
         """Test that unauthorized requests are rejected."""
-        url = f"{self.BASE_URL}/pointings"
+        url = self.get_url("/pointings")
 
         # Request without API token
         response = self.session.get(url)
@@ -667,7 +667,7 @@ class TestPointingEndpoints:
 
     def test_get_pointings_with_existing_api_tokens(self):
         """Test with different valid API tokens from test data."""
-        url = f"{self.BASE_URL}/pointings"
+        url = self.get_url("/pointings")
 
         # Test with admin token
         response = self.session.get(url, headers=self.admin_headers)
@@ -683,7 +683,7 @@ class TestPointingEndpoints:
 
     def test_get_pointings_by_specific_coordinates(self):
         """Test getting pointings near specific coordinates from test data."""
-        url = f"{self.BASE_URL}/pointings"
+        url = self.get_url("/pointings")
 
         # Test data has pointings around these coordinates
         params = {"ids": "[1]"}  # pointing 1 is at (123.456, -12.345)
@@ -701,7 +701,11 @@ class TestPointingEndpoints:
 class TestPointingWithSpecificData:
     """Test pointing functionality using specific values from test data."""
 
-    BASE_URL = "http://localhost:8000/api/v1"
+    def get_url(self, endpoint):
+        """Get full URL for an endpoint."""
+        return f"{API_BASE_URL}{API_V1_PREFIX}{endpoint}"
+
+
     TEST_USER_API_TOKEN = "test_token_user_002"
 
     @classmethod
@@ -714,7 +718,7 @@ class TestPointingWithSpecificData:
 
     def test_get_specific_pointing_by_id(self):
         """Test getting pointing 1 specifically."""
-        url = f"{self.BASE_URL}/pointings"
+        url = self.get_url("/pointings")
         params = {"id": 1}
         response = self.session.get(url, params=params, headers=self.headers)
 
@@ -736,7 +740,7 @@ class TestPointingWithSpecificData:
 
     def test_get_specific_pointing_by_graceid_and_instrument(self):
         """Test getting pointings for S190425z with instrument 1."""
-        url = f"{self.BASE_URL}/pointings"
+        url = self.get_url("/pointings")
         params = {
             "graceid": "S190425z",
             "instrument": "1"
@@ -750,7 +754,7 @@ class TestPointingWithSpecificData:
 
     def test_create_pointing_for_existing_graceid(self):
         """Test creating a pointing for an existing graceid."""
-        url = f"{self.BASE_URL}/pointings"
+        url = self.get_url("/pointings")
 
         pointing_data = {
             "graceid": "MS230101a",  # Test graceid from test data

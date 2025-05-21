@@ -1,3 +1,4 @@
+from geoalchemy2 import WKBElement
 from pydantic import BaseModel, ConfigDict, model_validator, field_serializer, field_validator
 from typing import List, Dict, Any, Optional, Union
 from datetime import datetime
@@ -5,11 +6,11 @@ from datetime import datetime
 from server.core.enums import bandpass as bandpass_enum
 from server.core.enums import depth_unit as depth_unit_enum
 from server.core.enums.pointing_status import pointing_status as pointing_status_enum
-
+from shapely.wkb import loads
 
 class PointingBase(BaseModel):
     """Base schema for pointing data."""
-    position: Optional[str] = None
+    position: Optional[Union[WKBElement, str]] = None
     ra: Optional[float] = None
     dec: Optional[float] = None
     instrumentid: Optional[int] = None
@@ -22,6 +23,14 @@ class PointingBase(BaseModel):
     status: Optional[Union[pointing_status_enum, str]] = "completed"
     central_wave: Optional[float] = None
     bandwidth: Optional[float] = None
+
+    @field_serializer("position")
+    def serialize_position(self, position):
+        """Convert WKBElement to string for JSON response."""
+        if position and isinstance(position, WKBElement):
+            # Extract WKB bytes from WKBElement
+            return str(loads(bytes(position.data)))
+        return position
 
     @field_validator("status", mode="before")
     @classmethod
@@ -58,17 +67,14 @@ class PointingBase(BaseModel):
 
     model_config = ConfigDict(
         from_attributes=True,
+        arbitrary_types_allowed=True,
         json_encoders={
             pointing_status_enum: lambda v: v.name if v else None,
             depth_unit_enum: lambda v: v.name if v else None,
             bandpass_enum: lambda v: v.name if v else None,
+            datetime: lambda v: v.isoformat() if v else None,
         }
     )
-
-
-class PointingCreate(PointingBase):
-    """Schema for creating a new pointing."""
-    id: Optional[int] = None
 
 
 class PointingResponse(BaseModel):
@@ -83,12 +89,13 @@ class PointingResponse(BaseModel):
 
 class PointingSchema(PointingBase):
     """Schema for returning a pointing."""
-    id: int
+    id: Optional[int] = None
     submitterid: Optional[int] = None
     datecreated: Optional[datetime] = None
     dateupdated: Optional[datetime] = None
     doi_url: Optional[str] = None
     doi_id: Optional[int] = None
+
 
     @field_serializer("status")
     def serialize_status(self, status):
@@ -111,4 +118,13 @@ class PointingSchema(PointingBase):
             return band.name
         return band
 
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(
+        from_attributes=True,
+        arbitrary_types_allowed=True,
+        json_encoders={
+            pointing_status_enum: lambda v: v.name if v else None,
+            depth_unit_enum: lambda v: v.name if v else None,
+            bandpass_enum: lambda v: v.name if v else None,
+            datetime: lambda v: v.isoformat() if v else None,
+        }
+    )
