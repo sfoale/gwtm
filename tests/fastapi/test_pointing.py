@@ -644,14 +644,39 @@ class TestPointingEndpoints:
             ]
         }
 
+        # Now create new pointing with DOI request for all created pointings
+        doi_data = {
+            "graceid": "S190425z",
+            # Need a pointing or pointings parameter
+            "pointing": {
+                "ra": 175.0,
+                "dec": 45.0,
+                "instrumentid": 1,
+                "depth": 23.0,
+                "depth_unit": "ab_mag",
+                "time": "2019-04-25T20:00:00.000000",
+                "status": "completed",
+                "pos_angle": 0.0,
+                "band": "V"
+            },
+            # DOI-related parameters
+            "request_doi": True,
+            "creators": [
+                {
+                    "name": "Test Researcher",
+                    "affiliation": "Test University"
+                }
+            ]
+        }
+
         response = requests.post(
             self.get_url("/pointings"),
-            json=json.dumps(doi_data),
+            json=doi_data,
             headers={"api_token": self.admin_token})
 
         assert response.status_code == 200
         data = response.json()
-        assert "DOI URL" in data
+        assert "DOI" in data
 
     def test_pointing_unauthorized_access(self):
         """Test that unauthorized requests are rejected."""
