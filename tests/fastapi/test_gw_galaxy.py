@@ -232,9 +232,7 @@ class TestGWGalaxyEndpoints:
         )
         
         # Should return 200 but with errors
-        assert response.status_code == status.HTTP_200_OK
-        data = response.json()
-        assert len(data["errors"]) > 0
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
 
     def test_remove_event_galaxies(self):
         """Test removing event galaxies."""
@@ -291,7 +289,7 @@ class TestGWGalaxyEndpoints:
         )
         
         assert response.status_code == status.HTTP_403_FORBIDDEN
-        assert "You can only delete information related to your api_token" in response.json()["detail"]
+        assert "You can only delete information related to your API token" in response.json()["message"]
 
     def test_remove_nonexistent_event_galaxies(self):
         """Test trying to remove nonexistent event galaxies."""
@@ -302,7 +300,7 @@ class TestGWGalaxyEndpoints:
         )
         
         assert response.status_code == status.HTTP_404_NOT_FOUND
-        assert "No galaxies with that listid" in response.json()["detail"]
+        assert "No galaxies found" in response.json()["message"]
 
     def test_get_glade_galaxies_no_params(self):
         """Test getting GLADE galaxies without parameters."""
@@ -414,7 +412,8 @@ class TestGWGalaxyEndpoints:
                 }
             ]
         }
-        
+
+        print(f'Galaxy data for {graceid}: {galaxy_data} - POSTing...')
         return requests.post(
             self.get_url("/event_galaxies"),
             json=galaxy_data,

@@ -1,17 +1,15 @@
 from fastapi import APIRouter, Depends, Query, Body
 from server.utils.error_handling import validation_exception, not_found_exception, permission_exception
 from geoalchemy2.shape import to_shape
-from geoalchemy2 import Geography
 from sqlalchemy.orm import Session
 from typing import List, Optional, Dict, Any
-from sqlalchemy import func, or_
-import json
 import datetime
+from dateutil.parser import parse as date_parse
+
 
 from server.db.database import get_db
 from server.db.models.gw_alert import GWAlert
 from server.db.models.gw_galaxy import GWGalaxy, EventGalaxy, GWGalaxyScore, GWGalaxyList, GWGalaxyEntry
-from server.db.models.users import Users
 from server.auth.auth import get_current_user
 from server.schemas.gw_galaxy import (
     GWGalaxySchema,
@@ -49,11 +47,11 @@ async def get_event_galaxies(
 
     if timesent_stamp:
         try:
-            time = datetime.datetime.strptime(timesent_stamp, "%Y-%m-%dT%H:%M:%S.%f")
+            time = date_parse(timesent_stamp)
         except ValueError:
             raise validation_exception(
                 message="Error parsing date",
-                errors=["Timestamp should be in %Y-%m-%dT%H:%M:%S.%f format. e.g. 2019-05-01T12:00:00.00"]
+                errors=[f"Timestamp should be in %Y-%m-%dT%H:%M:%S.%f format. e.g. 2019-05-01T12:00:00.00"]
             )
 
         # Find the alert with the given time and graceid
@@ -120,7 +118,8 @@ async def post_event_galaxies(
 
     # Parse timesent_stamp
     try:
-        time = datetime.datetime.strptime(request.timesent_stamp, "%Y-%m-%dT%H:%M:%S.%f")
+        print(f"Parsing timesent_stamp: {request.timesent_stamp}")
+        time = date_parse(request.timesent_stamp)
     except ValueError:
         raise validation_exception(
             message="Error parsing date",
