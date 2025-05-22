@@ -4,9 +4,7 @@ Tests use specific data from test-data.sql.
 """
 import os
 import requests
-import json
 from datetime import datetime
-from typing import Dict, Any, List, Optional
 import pytest
 from fastapi import status
 
@@ -145,7 +143,7 @@ class TestEventEndpoints:
         )
 
         assert response.status_code == 403
-        assert "admin" in response.json()["detail"].lower()
+        assert "admin" in response.json()["message"].lower()
 
     def test_get_gw_skymap(self):
         """Test getting a skymap FITS file."""
@@ -160,7 +158,7 @@ class TestEventEndpoints:
         if response.status_code == status.HTTP_200_OK:
             assert response.headers["Content-Type"] == "application/fits"
         else:
-            assert "Error in retrieving skymap file" in response.json()["detail"]
+            assert "Error in retrieving skymap file" in response.json()["message"]
 
     def test_get_gw_contour(self):
         """Test getting alert contour data."""
@@ -175,7 +173,7 @@ class TestEventEndpoints:
         if response.status_code == status.HTTP_200_OK:
             assert response.headers["Content-Type"] == "application/json"
         else:
-            assert "Error in retrieving Contour file" in response.json()["detail"]
+            assert "Error in retrieving Contour file" in response.json()["message"]
 
     def test_get_grb_moc_file(self):
         """Test getting GRB MOC file."""
@@ -190,7 +188,7 @@ class TestEventEndpoints:
         if response.status_code == status.HTTP_200_OK:
             assert response.headers["Content-Type"] == "application/json"
         else:
-            assert "MOC file" in response.json()["detail"]
+            assert "MOC file" in response.json()["message"]
 
     def test_get_grb_moc_file_invalid_instrument(self):
         """Test getting GRB MOC file with invalid instrument."""
@@ -201,7 +199,7 @@ class TestEventEndpoints:
         )
 
         assert response.status_code == 400
-        assert "Valid instruments are" in response.json()["detail"]
+        assert "Valid instruments are" in response.json()["message"]
 
     def test_del_test_alerts(self):
         """Test deleting test alerts (admin only)."""
@@ -238,7 +236,7 @@ class TestEventEndpoints:
         )
 
         assert response.status_code == 403
-        assert "admin" in response.json()["detail"].lower()
+        assert "admin" in response.json()["message"].lower()
 
     def test_event_api_unauthorized_access(self):
         """Test that unauthorized requests are rejected."""

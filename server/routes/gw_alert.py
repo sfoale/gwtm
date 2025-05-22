@@ -1,10 +1,12 @@
 import io
 import json
 from datetime import datetime, timedelta
-from typing import List, Optional, Dict, Any
+from typing import List, Optional
 
-from fastapi import APIRouter, Depends, Query, Body
-from server.utils.error_handling import validation_exception, not_found_exception, permission_exception, server_exception
+from fastapi import APIRouter, Depends, Query, HTTPException
+from fastapi.openapi.models import Response
+
+from server.utils.error_handling import not_found_exception
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
@@ -13,7 +15,7 @@ from server.db.models.gw_alert import GWAlert
 from server.schemas.gw_alert import GWAlertSchema
 from server.auth.auth import get_current_user, verify_admin
 from server.utils.gwtm_io import download_gwtm_file, list_gwtm_bucket, delete_gwtm_files
-from server.config import Settings
+from server.config import Settings as settings
 from server.utils.function import by_chunk
 from server.db.models.pointing import Pointing
 from server.db.models.pointing_event import PointingEvent
@@ -182,7 +184,7 @@ async def get_gw_contour(
     contour_path = f"fit/{path_info}-contours-smooth.json"
 
     try:
-        file_content = download_gwtm_file(filename=contour_path, source=config.STORAGE_BUCKET_SOURCE, config=config)
+        file_content = download_gwtm_file(filename=contour_path, source=settings.STORAGE_BUCKET_SOURCE, config=settings)
         return Response(content=file_content, media_type="application/json")
     except Exception as e:
         raise HTTPException(status_code=404, detail=f"Error in retrieving Contour file: {contour_path}")
@@ -221,7 +223,7 @@ async def get_grbmoc(
     moc_filepath = f"fit/{graceid}-{instrument_dictionary[instrument]}.json"
 
     try:
-        file_content = download_gwtm_file(filename=moc_filepath, source=config.STORAGE_BUCKET_SOURCE, config=config)
+        file_content = download_gwtm_file(filename=moc_filepath, source=settings.STORAGE_BUCKET_SOURCE, config=settings)
         return Response(content=file_content, media_type="application/json")
     except Exception as e:
         raise HTTPException(
