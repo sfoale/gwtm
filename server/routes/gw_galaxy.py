@@ -149,21 +149,30 @@ async def post_event_galaxies(
 
     if post_doi:
         if request.creators:
-            creators = request.creators
-            for c in creators:
-                if 'name' not in c or 'affiliation' not in c:
+            creators = []
+            for c in request.creators:
+                # Since request.creators is List[DOICreator] from Pydantic,
+                # c is a DOICreator object, not a dict
+                if not c.name or not c.affiliation:
                     raise validation_exception(
                         message="Invalid DOI creator information",
                         errors=["name and affiliation are required for each creator in the list"]
                     )
+                creator_dict = { 'name': c.name, 'affiliation': c.affiliation }
+                if c.orcid:
+                    creator_dict['orcid'] = c.orcid
+                if c.gnd:
+                    creator_dict['gnd'] = c.gnd
+                creators.append(creator_dict)
         elif request.doi_group_id:
-            from server.db.models.doi_author import doi_author
-            valid, creators = doi_author.construct_creators(request.doi_group_id, user.id)
+            from server.db.models.doi_author import DOIAuthor
+            valid, creators_list = DOIAuthor.construct_creators(request.doi_group_id, user.id, db)
             if not valid:
                 raise validation_exception(
                     message="Invalid DOI group ID",
                     errors=["Make sure you are the User associated with the DOI group"]
                 )
+            creators = creators_list
         else:
             creators = [{'name': f"{user.firstname} {user.lastname}", 'affiliation': ''}]
 
