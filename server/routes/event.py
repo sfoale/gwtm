@@ -3,11 +3,14 @@ from sqlalchemy.orm import Session
 from typing import List, Dict, Any, Optional
 from datetime import datetime
 import json
+import shapely.wkb
 
 from server.db.database import get_db
 from server.db.models.gw_alert import GWAlert
 from server.db.models.candidate import GWCandidate
 from server.schemas.gw_alert import GWAlertSchema, GWCandidateSchema
+from server.core.enums.depth_unit import depth_unit as depth_unit_enum
+from server.utils.error_handling import validation_exception, not_found_exception, permission_exception
 from server.auth.auth import get_current_user
 
 router = APIRouter(tags=["Events"])
@@ -22,7 +25,7 @@ async def get_candidate_events(
     query = db.query(GWCandidate)
     
     if user_id:
-        query = query.filter(GWCandidate.user_id == user_id)
+        query = query.filter(GWCandidate.submitterid == user_id)
     
     candidates = query.all()
     return candidates
@@ -34,12 +37,15 @@ async def create_candidate_event(
     current_user = Depends(get_current_user)
 ):
     """Create a new candidate event."""
+    # Create a POINT WKT string for position
+    position = f"POINT({candidate.ra} {candidate.dec})"
+    
     new_candidate = GWCandidate(
-        name=candidate.name,
-        ra=candidate.ra,
-        dec=candidate.dec,
-        error_radius=candidate.error_radius,
-        user_id=current_user.id,
+        candidate_name=candidate.candidate_name,
+        graceid=candidate.graceid, # Required field for GWCandidate
+        position=position,  # Set position from ra and dec
+        submitterid=current_user.id,
+        magnitude_unit=depth_unit_enum.ab_mag, # Default required field
         datecreated=datetime.now()
     )
     
@@ -60,17 +66,19 @@ async def update_candidate_event(
     db_candidate = db.query(GWCandidate).filter(GWCandidate.id == candidate_id).first()
     
     if not db_candidate:
-        raise HTTPException(status_code=404, detail="Candidate not found")
+        raise not_found_exception("Candidate not found")
     
     # Check if user is the owner or an admin
-    if db_candidate.user_id != current_user.id and not current_user.adminuser:
-        raise HTTPException(status_code=403, detail="Not authorized to update this candidate")
+    if db_candidate.submitterid != current_user.id and not current_user.adminuser:
+        raise permission_exception("Not authorized to update this candidate")
     
     # Update fields
-    db_candidate.name = candidate.name
-    db_candidate.ra = candidate.ra
-    db_candidate.dec = candidate.dec
-    db_candidate.error_radius = candidate.error_radius
+    db_candidate.candidate_name = candidate.candidate_name
+    
+    # Update position from ra and dec if provided
+    if candidate.ra is not None and candidate.dec is not None:
+        position = f"POINT({candidate.ra} {candidate.dec})"
+        db_candidate.position = position
     
     db.commit()
     db.refresh(db_candidate)
@@ -87,11 +95,11 @@ async def delete_candidate_event(
     db_candidate = db.query(GWCandidate).filter(GWCandidate.id == candidate_id).first()
     
     if not db_candidate:
-        raise HTTPException(status_code=404, detail="Candidate not found")
+        raise not_found_exception("Candidate not found")
     
     # Check if user is the owner or an admin
-    if db_candidate.user_id != current_user.id and not current_user.adminuser:
-        raise HTTPException(status_code=403, detail="Not authorized to delete this candidate")
+    if db_candidate.submitterid != current_user.id and not current_user.adminuser:
+        raise permission_exception("Not authorized to delete this candidate")
     
     db.delete(db_candidate)
     db.commit()

@@ -3,7 +3,8 @@ import json
 from datetime import datetime, timedelta
 from typing import List, Optional, Dict, Any
 
-from fastapi import APIRouter, HTTPException, Depends, Query, Body, Response
+from fastapi import APIRouter, Depends, Query, Body
+from server.utils.error_handling import validation_exception, not_found_exception, permission_exception, server_exception
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
@@ -112,7 +113,7 @@ async def get_gw_skymap(
     alerts = db.query(GWAlert).filter(GWAlert.graceid == graceid).order_by(GWAlert.datecreated.desc()).all()
 
     if not alerts:
-        raise HTTPException(status_code=404, detail=f"No alert found with graceid: {graceid}")
+        raise not_found_exception(f"No alert found with graceid: {graceid}")
 
     # Extract alert info
     alert = alerts[0]
@@ -167,7 +168,7 @@ async def get_gw_contour(
     alerts = db.query(GWAlert).filter(GWAlert.graceid == graceid).order_by(GWAlert.datecreated.desc()).all()
 
     if not alerts:
-        raise HTTPException(status_code=404, detail=f"No alert found with graceid: {graceid}")
+        raise not_found_exception(f"No alert found with graceid: {graceid}")
 
     # Extract alert info
     alert = alerts[0]

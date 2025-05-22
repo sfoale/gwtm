@@ -1,4 +1,5 @@
-from fastapi import APIRouter, HTTPException, Depends, Query, Body
+from fastapi import APIRouter, Depends, Query, Body
+from server.utils.error_handling import validation_exception, not_found_exception, permission_exception, server_exception
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from datetime import datetime
@@ -184,7 +185,6 @@ def validate_pointing(pointing, data, dbinsts, user_id, planned_pointings, other
 
     # Set validation result
     result.valid = len(result.errors) == 0
-    print(f"Validation result: {result.valid} Errors:{result.errors} Warnings:{result.warnings}") # Debugging purposes
     return result
 
 
@@ -243,9 +243,9 @@ async def add_pointings(
     # First check if the graceid exists
     valid_alerts = db.query(GWAlert).filter(GWAlert.graceid == graceid).all()
     if len(valid_alerts) == 0:
-        raise HTTPException(
-            status_code=500,
-            detail="Invalid graceid"
+        raise validation_exception(
+            message="Invalid graceid",
+            errors=[f"The graceid '{graceid}' does not exist in the database"]
         )
 
     # Handle DOI creators
@@ -253,18 +253,18 @@ async def add_pointings(
         if creators:
             for c in creators:
                 if 'name' not in c or 'affiliation' not in c:
-                    raise HTTPException(
-                        status_code=500,
-                        detail="name and affiliation are required for DOI creators json list"
+                    raise validation_exception(
+                        message="Invalid DOI creator information",
+                        errors=["name and affiliation are required for each creator in the list"]
                     )
         elif doi_group_id:
             # Import here to avoid circular imports
             from server.db.models.doi_author import DOIAuthor
             valid, creators_list = DOIAuthor.construct_creators(doi_group_id, user.id, db)
             if not valid:
-                raise HTTPException(
-                    status_code=500,
-                    detail="Invalid doi_group_id. Make sure you are the User associated with the DOI group"
+                raise validation_exception(
+                    message="Invalid DOI group ID",
+                    errors=["Make sure you are the User associated with the DOI group"]
                 )
             creators = creators_list
         else:
@@ -480,7 +480,7 @@ def get_pointings(
             if isInt(id):
                 filter_conditions.append(Pointing.id == int(id))
             else:
-                raise HTTPException(status_code=400, detail="ID must be an integer")
+                raise validation_exception(message="Invalid ID format", errors=["ID must be an integer"])
 
         if ids:
             try:
@@ -509,7 +509,7 @@ def get_pointings(
                     filter_conditions.append(Pointing.band == b)
                     break
             else:
-                raise HTTPException(status_code=400, detail=f"Invalid band: {band}")
+                raise validation_exception(message="Invalid band", errors=[f"The band '{band}' is not valid"])
 
         if bands:
             try:
@@ -532,11 +532,11 @@ def get_pointings(
                 if valid_bands:
                     filter_conditions.append(Pointing.band.in_(valid_bands))
                 else:
-                    raise HTTPException(status_code=400, detail="No valid bands specified")
+                    raise validation_exception(message="No valid bands", errors=["No valid bands were specified"])
             except Exception as e:
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Error parsing 'bands'. Required format is a list: '[band1, band2...]'"
+                raise validation_exception(
+                    message="Error parsing bands",
+                    errors=[f"Invalid format for 'bands' parameter. Required format is a list: '[band1, band2...]'", str(e)]
                 )
 
         # Handle status filters
@@ -577,11 +577,11 @@ def get_pointings(
                 if valid_statuses:
                     filter_conditions.append(Pointing.status.in_(valid_statuses))
                 else:
-                    raise HTTPException(status_code=400, detail="No valid statuses specified")
+                    raise validation_exception(message="No valid statuses", errors=["No valid status values were specified"])
             except Exception as e:
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Error parsing 'statuses'. Required format is a list: '[status1, status2...]'"
+                raise validation_exception(
+                    message="Error parsing statuses",
+                    errors=[f"Invalid format for 'statuses' parameter. Required format is a list: '[status1, status2...]'", str(e)]
                 )
 
         # Handle time filters
@@ -856,7 +856,7 @@ def get_pointings(
 
         return pointings
     except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise validation_exception(message="Invalid request", errors=[str(e)])
 
 @router.post("/update_pointings")
 async def update_pointings(
@@ -874,10 +874,9 @@ async def update_pointings(
     Returns:
     - Message with the number of updated pointings
     """
-    print(f'payload is {update_pointing}')
 
     if update_pointing.status != "cancelled":
-        raise HTTPException(status_code=400, detail="Only 'cancelled' status is allowed.")
+        raise validation_exception(message="Invalid status update", errors=["Only 'cancelled' status is allowed in bulk updates"])
     try:
         # Add a filter to ensure user can only update their own pointings
         pointings = db.query(Pointing).filter(
@@ -894,7 +893,7 @@ async def update_pointings(
         return {"message": f"Updated {len(pointings)} pointings successfully."}
     except Exception as e:
         db.rollback()
-        raise HTTPException(status_code=400, detail=str(e))
+        raise validation_exception(message="Invalid request", errors=[str(e)])
 
 @router.post("/cancel_all")
 async def cancel_all(
@@ -916,7 +915,7 @@ async def cancel_all(
     # Validate instrumentid
     instrument = db.query(Instrument).filter(Instrument.id == instrumentid).first()
     if not instrument:
-        raise HTTPException(status_code=404, detail=f"Instrument with ID {instrumentid} not found")
+        raise not_found_exception(f"Instrument with ID {instrumentid} not found")
     
     # Build the filter
     filter_conditions = [
@@ -991,7 +990,10 @@ async def request_doi(
         filter_conditions.append(Pointing.id.in_(ids))
     
     if len(filter_conditions) == 1:
-        raise HTTPException(status_code=400, detail="Insufficient filter parameters")
+        raise validation_exception(
+            message="Insufficient filter parameters",
+            errors=["Please provide either graceid, id, or ids parameter"]
+        )
     
     # Query the pointings
     points = db.query(Pointing).filter(*filter_conditions).all()
@@ -1007,7 +1009,10 @@ async def request_doi(
             warnings.append(f"Invalid doi request for pointing: {p.id}")
     
     if len(doi_points) == 0:
-        raise HTTPException(status_code=400, detail="No pointings to give DOI")
+        raise validation_exception(
+            message="No valid pointings found for DOI request",
+            errors=["All pointings must be completed, owned by you, and not already have a DOI"]
+        )
     
     # Get the instruments
     insts = db.query(Instrument).filter(Instrument.id.in_([x.instrumentid for x in doi_points]))
@@ -1019,7 +1024,10 @@ async def request_doi(
     )]))
     
     if len(gids) > 1:
-        raise HTTPException(status_code=400, detail="Pointings must be only for a single GW event")
+        raise validation_exception(
+            message="Multiple events detected", 
+            errors=["Pointings must be only for a single GW event for a DOI request"]
+        )
     
     gid = gids[0]
     
@@ -1040,9 +1048,9 @@ async def request_doi(
         # Validate creators
         for c in creators:
             if "name" not in c.keys() or "affiliation" not in c.keys():
-                raise HTTPException(
-                    status_code=400,
-                    detail="name and affiliation are required for DOI creators json list"
+                raise validation_exception(
+                    message="Invalid DOI creator information",
+                    errors=["name and affiliation are required for each creator in the list"]
                 )
     
     # Create or use provided DOI

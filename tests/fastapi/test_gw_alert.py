@@ -9,6 +9,7 @@ import io
 import datetime
 from typing import Dict, Any, List, Optional
 import pytest
+from fastapi import status
 
 # Test configuration
 API_BASE_URL = os.getenv("API_BASE_URL", "http://localhost:8000")
@@ -38,7 +39,7 @@ class TestGWAlertEndpoints:
             headers={"api_token": self.admin_token}
         )
 
-        assert response.status_code == 200
+        assert response.status_code == status.HTTP_200_OK
         data = response.json()
         assert isinstance(data, list)
         # Should return all alerts in test data
@@ -53,7 +54,7 @@ class TestGWAlertEndpoints:
                 headers={"api_token": self.admin_token}
             )
 
-            assert response.status_code == 200
+            assert response.status_code == status.HTTP_200_OK
             data = response.json()
             assert isinstance(data, list)
             assert len(data) > 0
@@ -73,7 +74,7 @@ class TestGWAlertEndpoints:
                 headers={"api_token": self.admin_token}
             )
 
-            assert response.status_code == 200
+            assert response.status_code == status.HTTP_200_OK
             data = response.json()
             assert isinstance(data, list)
             
@@ -91,7 +92,7 @@ class TestGWAlertEndpoints:
             headers={"api_token": self.admin_token}
         )
 
-        assert response.status_code == 200
+        assert response.status_code == status.HTTP_200_OK
         data = response.json()
         assert isinstance(data, list)
         
@@ -105,7 +106,7 @@ class TestGWAlertEndpoints:
     def test_query_alerts_without_auth(self):
         """Test that authentication is required."""
         response = requests.get(self.get_url("/query_alerts"))
-        assert response.status_code == 401
+        assert response.status_code == status.HTTP_401_UNAUTHORIZED
 
     def test_query_alerts_with_invalid_token(self):
         """Test with invalid API token."""
@@ -113,7 +114,7 @@ class TestGWAlertEndpoints:
             self.get_url("/query_alerts"),
             headers={"api_token": self.invalid_token}
         )
-        assert response.status_code == 401
+        assert response.status_code == status.HTTP_401_UNAUTHORIZED
 
     def test_post_alert_as_admin(self):
         """Test posting a new GW alert as admin."""
@@ -147,7 +148,7 @@ class TestGWAlertEndpoints:
             headers={"api_token": self.admin_token}
         )
 
-        assert response.status_code == 200
+        assert response.status_code == status.HTTP_200_OK
         data = response.json()
         assert "graceid" in data
         assert data["graceid"] == alert_data["graceid"]
@@ -169,7 +170,7 @@ class TestGWAlertEndpoints:
         )
 
         # Should fail with 403 Forbidden
-        assert response.status_code == 403
+        assert response.status_code == status.HTTP_403_FORBIDDEN
 
     def test_get_gw_skymap(self):
         """Test getting a GW skymap FITS file."""
@@ -181,7 +182,7 @@ class TestGWAlertEndpoints:
             )
 
             # If skymap exists, should return 200, otherwise 404
-            if response.status_code == 200:
+            if response.status_code == status.HTTP_200_OK:
                 # Should return binary data with FITS header
                 assert response.headers["Content-Type"] == "application/fits"
                 assert response.headers["Content-Disposition"].startswith("attachment; filename=")
@@ -189,7 +190,7 @@ class TestGWAlertEndpoints:
                 break  # Found a valid skymap, no need to try others
             else:
                 # Graceid might not have a skymap in test data
-                assert response.status_code == 404
+                assert response.status_code == status.HTTP_404_NOT_FOUND
                 assert "Error in retrieving skymap file" in response.json()["detail"]
 
     def test_get_gw_contour(self):
@@ -202,7 +203,7 @@ class TestGWAlertEndpoints:
             )
 
             # If contour exists, should return 200, otherwise 404
-            if response.status_code == 200:
+            if response.status_code == status.HTTP_200_OK:
                 # Should return JSON data
                 assert response.headers["Content-Type"] == "application/json"
                 # Try to parse as JSON to confirm it's valid
@@ -215,7 +216,7 @@ class TestGWAlertEndpoints:
                 break  # Found a valid contour, no need to try others
             else:
                 # Graceid might not have a contour in test data
-                assert response.status_code == 404
+                assert response.status_code == status.HTTP_404_NOT_FOUND
                 assert "Error in retrieving Contour file" in response.json()["detail"]
 
     def test_get_grb_moc_file(self):
@@ -231,7 +232,7 @@ class TestGWAlertEndpoints:
                 )
 
                 # If MOC file exists, should return 200, otherwise 404
-                if response.status_code == 200:
+                if response.status_code == status.HTTP_200_OK:
                     # Should return JSON data
                     assert response.headers["Content-Type"] == "application/json"
                     # Try to parse as JSON to confirm it's valid
@@ -255,7 +256,7 @@ class TestGWAlertEndpoints:
             headers={"api_token": self.admin_token}
         )
 
-        assert response.status_code == 400
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
         assert "Valid instruments are in ['gbm', 'lat', 'bat']" in response.json()["detail"]
 
 
@@ -267,7 +268,7 @@ class TestGWAlertEndpoints:
         )
 
         # Should fail with 403 Forbidden
-        assert response.status_code == 403
+        assert response.status_code == status.HTTP_403_FORBIDDEN
 
     def test_alerts_with_different_tokens(self):
         """Test alert queries with different valid API tokens."""
@@ -277,7 +278,7 @@ class TestGWAlertEndpoints:
                 self.get_url("/query_alerts"),
                 headers={"api_token": token}
             )
-            assert response.status_code == 200
+            assert response.status_code == status.HTTP_200_OK
 
     def test_alert_data_format(self):
         """Test that alert data is returned in the correct format."""
@@ -287,7 +288,7 @@ class TestGWAlertEndpoints:
             headers={"api_token": self.admin_token}
         )
 
-        assert response.status_code == 200
+        assert response.status_code == status.HTTP_200_OK
         alerts = response.json()
         
         if len(alerts) == 0:

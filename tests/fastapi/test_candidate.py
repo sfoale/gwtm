@@ -8,6 +8,7 @@ import json
 from datetime import datetime
 from typing import Dict, Any, List, Optional
 import pytest
+from fastapi import status
 
 # Test configuration
 API_BASE_URL = os.getenv("API_BASE_URL", "http://localhost:8000")
@@ -37,7 +38,7 @@ class TestCandidateEndpoints:
             headers={"api_token": self.admin_token}
         )
 
-        assert response.status_code == 200
+        assert response.status_code == status.HTTP_200_OK
         data = response.json()
         assert isinstance(data, list)
         # Should return candidates that exist in test data
@@ -67,7 +68,7 @@ class TestCandidateEndpoints:
             json=candidate_data,
             headers={"api_token": self.admin_token}
         )
-        assert create_response.status_code == 200
+        assert create_response.status_code == status.HTTP_200_OK
         candidate_id = create_response.json()["candidate_ids"][0]
 
         # Now get it by ID
@@ -77,7 +78,7 @@ class TestCandidateEndpoints:
             headers={"api_token": self.admin_token}
         )
 
-        assert response.status_code == 200
+        assert response.status_code == status.HTTP_200_OK
         data = response.json()
         assert isinstance(data, list)
         assert len(data) == 1
@@ -92,7 +93,7 @@ class TestCandidateEndpoints:
             headers={"api_token": self.admin_token}
         )
 
-        assert response.status_code == 200
+        assert response.status_code == status.HTTP_200_OK
         data = response.json()
         assert isinstance(data, list)
         # All returned candidates should have the specified graceid
@@ -122,7 +123,7 @@ class TestCandidateEndpoints:
                 json=candidate_data,
                 headers={"api_token": self.admin_token}
             )
-            assert create_response.status_code == 200
+            assert create_response.status_code == status.HTTP_200_OK
             candidate_ids.extend(create_response.json()["candidate_ids"])
 
         # Now get them by IDs
@@ -133,7 +134,7 @@ class TestCandidateEndpoints:
             headers={"api_token": self.admin_token}
         )
 
-        assert response.status_code == 200
+        assert response.status_code == status.HTTP_200_OK
         data = response.json()
         assert isinstance(data, list)
         assert len(data) >= 2
@@ -149,7 +150,7 @@ class TestCandidateEndpoints:
             headers={"api_token": self.admin_token}
         )
 
-        assert response.status_code == 200
+        assert response.status_code == status.HTTP_200_OK
         data = response.json()
         assert isinstance(data, list)
         # All returned candidates should be submitted by user 1
@@ -167,7 +168,7 @@ class TestCandidateEndpoints:
             headers={"api_token": self.admin_token}
         )
 
-        assert response.status_code == 200
+        assert response.status_code == status.HTTP_200_OK
         data = response.json()
         assert isinstance(data, list)
         # Check that returned candidates are within the date range
@@ -187,7 +188,7 @@ class TestCandidateEndpoints:
             headers={"api_token": self.admin_token}
         )
 
-        assert response.status_code == 200
+        assert response.status_code == status.HTTP_200_OK
         data = response.json()
         assert isinstance(data, list)
         # Check that returned candidates are within the magnitude range
@@ -222,7 +223,7 @@ class TestCandidateEndpoints:
             headers={"api_token": self.admin_token}
         )
 
-        assert response.status_code == 200
+        assert response.status_code == status.HTTP_200_OK
         data = response.json()
         assert "candidate_ids" in data
         assert len(data["candidate_ids"]) == 1
@@ -261,7 +262,7 @@ class TestCandidateEndpoints:
             headers={"api_token": self.admin_token}
         )
 
-        assert response.status_code == 200
+        assert response.status_code == status.HTTP_200_OK
         data = response.json()
         assert "candidate_ids" in data
         assert len(data["candidate_ids"]) == 2
@@ -287,7 +288,7 @@ class TestCandidateEndpoints:
             headers={"api_token": self.admin_token}
         )
 
-        assert response.status_code == 200
+        assert response.status_code == status.HTTP_200_OK
         data = response.json()
         assert len(data["candidate_ids"]) == 1
         assert len(data.get("ERRORS", [])) == 0
@@ -314,7 +315,7 @@ class TestCandidateEndpoints:
             headers={"api_token": self.admin_token}
         )
 
-        assert response.status_code == 200
+        assert response.status_code == status.HTTP_200_OK
         data = response.json()
         assert len(data["candidate_ids"]) == 1
         assert len(data.get("ERRORS", [])) == 0
@@ -339,7 +340,7 @@ class TestCandidateEndpoints:
             headers={"api_token": self.admin_token}
         )
 
-        assert response.status_code == 400
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
         assert "Invalid 'graceid'" in response.json()["detail"]
 
     def test_post_candidate_missing_required_fields(self):
@@ -361,7 +362,7 @@ class TestCandidateEndpoints:
             headers={"api_token": self.admin_token}
         )
 
-        assert response.status_code == 422
+        assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
         data = response.json()
         missing_fields = {error["loc"][-1] for error in data.get("detail", []) if error["type"] == "missing"}
         assert "discovery_date" in missing_fields
@@ -386,7 +387,7 @@ class TestCandidateEndpoints:
             headers={"api_token": self.admin_token}
         )
 
-        assert response.status_code == 422
+        assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
         data = response.json()['detail'][0]['msg']
         assert "Either position or both ra and dec must be provided" in data
 
@@ -412,7 +413,7 @@ class TestCandidateEndpoints:
             json=candidate_data,
             headers={"api_token": self.admin_token}
         )
-        assert create_response.status_code == 200
+        assert create_response.status_code == status.HTTP_200_OK
         candidate_id = create_response.json()["candidate_ids"][0]
 
         # Now update it
@@ -432,7 +433,7 @@ class TestCandidateEndpoints:
             headers={"api_token": self.admin_token}
         )
 
-        assert response.status_code == 200
+        assert response.status_code == status.HTTP_200_OK
         data = response.json()
         assert "candidate" in data
         assert data["candidate"]["candidate_name"] == "SN_Updated"
@@ -454,7 +455,7 @@ class TestCandidateEndpoints:
             headers={"api_token": self.admin_token}
         )
 
-        assert response.status_code == 404
+        assert response.status_code == status.HTTP_404_NOT_FOUND
         assert "No candidate found" in response.json()["detail"]
 
     def test_put_candidate_unauthorized(self):
@@ -477,7 +478,7 @@ class TestCandidateEndpoints:
             json=candidate_data,
             headers={"api_token": self.admin_token}
         )
-        assert create_response.status_code == 200
+        assert create_response.status_code == status.HTTP_200_OK
         candidate_id = create_response.json()["candidate_ids"][0]
 
         # Try to update as different user
@@ -494,7 +495,7 @@ class TestCandidateEndpoints:
             headers={"api_token": self.user_token}
         )
 
-        assert response.status_code == 403
+        assert response.status_code == status.HTTP_403_FORBIDDEN
         assert "Unauthorized" in response.json()["detail"]
 
     def test_delete_candidate_single(self):
@@ -517,7 +518,7 @@ class TestCandidateEndpoints:
             json=candidate_data,
             headers={"api_token": self.admin_token}
         )
-        assert create_response.status_code == 200
+        assert create_response.status_code == status.HTTP_200_OK
         candidate_id = create_response.json()["candidate_ids"][0]
 
         # Now delete it
@@ -527,7 +528,7 @@ class TestCandidateEndpoints:
             headers={"api_token": self.admin_token}
         )
 
-        assert response.status_code == 200
+        assert response.status_code == status.HTTP_200_OK
         data = response.json()
         assert "Successfully deleted" in data["message"]
         assert candidate_id in data["deleted_ids"]
@@ -554,7 +555,7 @@ class TestCandidateEndpoints:
                 json=candidate_data,
                 headers={"api_token": self.admin_token}
             )
-            assert create_response.status_code == 200
+            assert create_response.status_code == status.HTTP_200_OK
             candidate_ids.extend(create_response.json()["candidate_ids"])
 
         # Now delete them
@@ -565,7 +566,7 @@ class TestCandidateEndpoints:
             headers={"api_token": self.admin_token}
         )
 
-        assert response.status_code == 200
+        assert response.status_code == status.HTTP_200_OK
         data = response.json()
         assert "Successfully deleted" in data["message"]
         assert len(data["deleted_ids"]) == 3
@@ -580,7 +581,7 @@ class TestCandidateEndpoints:
             headers={"api_token": self.admin_token}
         )
 
-        assert response.status_code == 404
+        assert response.status_code == status.HTTP_404_NOT_FOUND
         assert "No candidate found" in response.json()["detail"]
 
     def test_delete_candidate_unauthorized(self):
@@ -603,7 +604,7 @@ class TestCandidateEndpoints:
             json=candidate_data,
             headers={"api_token": self.admin_token}
         )
-        assert create_response.status_code == 200
+        assert create_response.status_code == status.HTTP_200_OK
         candidate_id = create_response.json()["candidate_ids"][0]
 
         # Try to delete as different user
@@ -613,21 +614,21 @@ class TestCandidateEndpoints:
             headers={"api_token": self.user_token}
         )
 
-        assert response.status_code == 403
+        assert response.status_code == status.HTTP_403_FORBIDDEN
         assert "Unauthorized" in response.json()["detail"]
 
     def test_candidate_unauthorized_access(self):
         """Test that unauthorized requests are rejected."""
         # Request without API token
         response = requests.get(self.get_url("/candidate"))
-        assert response.status_code == 401
+        assert response.status_code == status.HTTP_401_UNAUTHORIZED
 
         # Request with invalid API token
         response = requests.get(
             self.get_url("/candidate"),
             headers={"api_token": self.invalid_token}
         )
-        assert response.status_code == 401
+        assert response.status_code == status.HTTP_401_UNAUTHORIZED
 
     def test_get_candidates_with_different_tokens(self):
         """Test access with different valid API tokens."""
@@ -637,7 +638,7 @@ class TestCandidateEndpoints:
                 self.get_url("/candidate"),
                 headers={"api_token": token}
             )
-            assert response.status_code == 200
+            assert response.status_code == status.HTTP_200_OK
 
     def test_post_candidate_with_different_users(self):
         """Test creating candidates as different users."""
@@ -660,7 +661,7 @@ class TestCandidateEndpoints:
             headers={"api_token": self.user_token}
         )
 
-        assert response.status_code == 200
+        assert response.status_code == status.HTTP_200_OK
         data = response.json()
         assert len(data["candidate_ids"]) == 1
 
@@ -671,7 +672,7 @@ class TestCandidateEndpoints:
             params={"id": candidate_id},
             headers={"api_token": self.user_token}
         )
-        assert get_response.status_code == 200
+        assert get_response.status_code == status.HTTP_200_OK
         candidate = get_response.json()[0]
         assert candidate["submitterid"] == 2  # User token corresponds to user ID 2
 
@@ -705,7 +706,7 @@ class TestCandidateAPIValidation:
             headers={"api_token": self.admin_token}
         )
 
-        assert response.status_code == 422
+        assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
         data = response.json()
         assert 'Invalid magnitude unit' in response.json()['detail'][0]['msg']
 
@@ -730,7 +731,7 @@ class TestCandidateAPIValidation:
             headers={"api_token": self.admin_token}
         )
 
-        assert response.status_code == 422
+        assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
         data = response.json()
         assert 'Invalid discovery_date format' in response.json()['detail'][0]['msg']
 
@@ -753,7 +754,7 @@ class TestCandidateAPIValidation:
             headers={"api_token": self.admin_token}
         )
 
-        assert response.status_code == 422
+        assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
         data = response.json()
         assert 'Either position or both ra and dec must be provided' in response.json()['detail'][0]['msg']
 
@@ -788,7 +789,7 @@ class TestCandidateAPIIntegration:
             json=candidate_data,
             headers={"api_token": self.admin_token}
         )
-        assert create_response.status_code == 200
+        assert create_response.status_code == status.HTTP_200_OK
         candidate_id = create_response.json()["candidate_ids"][0]
 
         # Step 2: Read candidate
@@ -797,7 +798,7 @@ class TestCandidateAPIIntegration:
             params={"id": candidate_id},
             headers={"api_token": self.admin_token}
         )
-        assert get_response.status_code == 200
+        assert get_response.status_code == status.HTTP_200_OK
         candidate = get_response.json()[0]
         assert candidate["candidate_name"] == "SN_WorkflowTest"
 
@@ -815,7 +816,7 @@ class TestCandidateAPIIntegration:
             json=update_data,
             headers={"api_token": self.admin_token}
         )
-        assert update_response.status_code == 200
+        assert update_response.status_code == status.HTTP_200_OK
         assert update_response.json()["candidate"]["discovery_magnitude"] == 21.5
 
         # Step 4: Delete candidate
@@ -824,7 +825,7 @@ class TestCandidateAPIIntegration:
             json={"id": candidate_id},
             headers={"api_token": self.admin_token}
         )
-        assert delete_response.status_code == 200
+        assert delete_response.status_code == status.HTTP_200_OK
         assert candidate_id in delete_response.json()["deleted_ids"]
 
         # Step 5: Verify deletion
@@ -833,7 +834,7 @@ class TestCandidateAPIIntegration:
             params={"id": candidate_id},
             headers={"api_token": self.admin_token}
         )
-        assert verify_response.status_code == 200
+        assert verify_response.status_code == status.HTTP_200_OK
         assert len(verify_response.json()) == 0  # Should be empty
 
     def test_bulk_operations(self):
@@ -858,7 +859,7 @@ class TestCandidateAPIIntegration:
             json=candidates_data,
             headers={"api_token": self.admin_token}
         )
-        assert create_response.status_code == 200
+        assert create_response.status_code == status.HTTP_200_OK
         candidate_ids = create_response.json()["candidate_ids"]
         assert len(candidate_ids) == 5
 
@@ -868,7 +869,7 @@ class TestCandidateAPIIntegration:
             json={"ids": candidate_ids},
             headers={"api_token": self.admin_token}
         )
-        assert delete_response.status_code == 200
+        assert delete_response.status_code == status.HTTP_200_OK
         assert len(delete_response.json()["deleted_ids"]) == 5
 
     def test_candidate_with_all_optional_fields(self):
@@ -898,7 +899,7 @@ class TestCandidateAPIIntegration:
             json=candidate_data,
             headers={"api_token": self.admin_token}
         )
-        assert response.status_code == 200
+        assert response.status_code == status.HTTP_200_OK
         assert len(response.json()["candidate_ids"]) == 1
         assert len(response.json().get("ERRORS", [])) == 0
 

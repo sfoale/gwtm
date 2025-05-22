@@ -72,11 +72,22 @@ class GWGalaxyScoreSchema(BaseModel):
 
 class GWCandidateSchema(BaseModel):
     id: Optional[int] = None
-    name: str
-    ra: float
-    dec: float
-    error_radius: float
-    user_id: Optional[int] = None
+    graceid: str
+    candidate_name: str
+    ra: Optional[float] = None
+    dec: Optional[float] = None
+    submitterid: Optional[int] = None
     datecreated: Optional[datetime] = None
+    tns_name: Optional[str] = None
+    tns_url: Optional[str] = None
+    discovery_date: Optional[datetime] = None
+    discovery_magnitude: Optional[float] = None
+    magnitude_central_wave: Optional[float] = None
+    magnitude_bandwidth: Optional[float] = None
+    magnitude_unit: Optional[str] = None
+    magnitude_bandpass: Optional[str] = None
+    associated_galaxy: Optional[str] = None
+    associated_galaxy_redshift: Optional[float] = None
+    associated_galaxy_distance: Optional[float] = None
 
     model_config = ConfigDict(from_attributes=True)
