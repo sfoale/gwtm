@@ -491,7 +491,7 @@ class TestPointingEndpoints:
             headers={"api_token": self.admin_token})
 
         assert response.status_code == status.HTTP_400_BAD_REQUEST
-        assert "Invalid graceid" in response.json().get("detail", "")
+        assert "Invalid graceid" in response.json().get("message")
 
     def test_post_pointing_missing_required_fields(self):
         """Test posting pointing with missing required fields."""

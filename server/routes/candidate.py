@@ -1,11 +1,9 @@
-from fastapi import APIRouter, Depends, Query, Body
+from fastapi import APIRouter, Depends, Query, Body, HTTPException
 from server.utils.error_handling import validation_exception, not_found_exception, permission_exception, server_exception
 from sqlalchemy.orm import Session
-from typing import List, Optional, Dict, Any
-from datetime import datetime
+from typing import List
 from dateutil.parser import parse as date_parse
 import shapely.wkb
-import json
 
 from server.db.database import get_db
 from server.db.models.gw_alert import GWAlert

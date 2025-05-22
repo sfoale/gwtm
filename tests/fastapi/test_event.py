@@ -4,9 +4,6 @@ Tests use specific data from test-data.sql.
 """
 import os
 import requests
-import json
-from datetime import datetime
-from typing import Dict, Any, List, Optional
 import pytest
 from fastapi import status
 
@@ -285,12 +282,9 @@ class TestEventEndpoints:
             headers={"api_token": self.admin_token}
         )
 
-        assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY  # Validation error
-        errors = response.json()["detail"]
-        error_fields = [error["loc"][-1] for error in errors]
-        assert "graceid" in error_fields
-        # Either ra/dec or position must be provided, so one of these should be in errors
-        assert "ra" in error_fields or "dec" in error_fields or "position" in error_fields
+        assert response.status_code == status.HTTP_400_BAD_REQUEST  # Validation error
+        assert 'missing' in response.json()['errors'][0]['params']['type']
+        assert 'graceid' in response.json()['errors'][0]['params']['field']
 
     def test_update_candidate_event_nonexistent(self):
         """Test updating a non-existent candidate event."""
@@ -343,8 +337,8 @@ class TestEventAPIValidation:
             headers={"api_token": self.admin_token}
         )
 
-        assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY  # Validation error
-        errors = response.json()["detail"]
+        assert response.status_code == status.HTTP_400_BAD_REQUEST  # Validation error
+        errors = response.json()["errors"]
         assert any("ra" in str(e) for e in errors)
         assert any("dec" in str(e) for e in errors)
 
@@ -363,8 +357,8 @@ class TestEventAPIValidation:
             headers={"api_token": self.admin_token}
         )
 
-        assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY  # Validation error
-        errors = response.json()["detail"]
+        assert response.status_code == status.HTTP_400_BAD_REQUEST  # Validation error
+        errors = response.json()["errors"]
         assert any("ra" in str(e) for e in errors) or any("dec" in str(e) for e in errors)
 
 

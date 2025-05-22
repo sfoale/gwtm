@@ -7,13 +7,11 @@ from typing import List, Optional, Dict, Any
 
 from server.db.models.pointing import Pointing
 from server.db.models.instrument import Instrument
-from server.schemas.doi import DOIAuthorSchema
 from server.schemas.pointing import PointingSchema, PointingResponse, PointingUpdate
 from server.db.database import get_db
 from server.auth.auth import get_current_user
 from server.db.models.gw_alert import GWAlert
 from server.db.models.pointing_event import PointingEvent
-import shapely.wkb
 from server.utils.function import isFloat, isInt, create_pointing_doi
 from server.core.enums.wavelength_units import wavelength_units
 from server.core.enums.frequency_units import frequency_units

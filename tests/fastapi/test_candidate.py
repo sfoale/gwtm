@@ -341,7 +341,7 @@ class TestCandidateEndpoints:
         )
 
         assert response.status_code == status.HTTP_400_BAD_REQUEST
-        assert "Invalid 'graceid'" in response.json()["detail"]
+        assert "Invalid 'graceid'" in response.json()["message"]
 
     def test_post_candidate_missing_required_fields(self):
         """Test posting candidate with missing required fields."""
@@ -362,11 +362,11 @@ class TestCandidateEndpoints:
             headers={"api_token": self.admin_token}
         )
 
-        assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
         data = response.json()
-        missing_fields = {error["loc"][-1] for error in data.get("detail", []) if error["type"] == "missing"}
-        assert "discovery_date" in missing_fields
-        assert "discovery_magnitude" in missing_fields
+        missing_fields = [field['params']['field'] for field in response.json()['errors']]
+        assert "discovery_date" in str(missing_fields)
+        assert "discovery_magnitude" in str(missing_fields)
 
     def test_post_candidate_invalid_position(self):
         """Test posting candidate with invalid position data."""
@@ -387,8 +387,8 @@ class TestCandidateEndpoints:
             headers={"api_token": self.admin_token}
         )
 
-        assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
-        data = response.json()['detail'][0]['msg']
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        data = response.json()['errors'][0]['message']
         assert "Either position or both ra and dec must be provided" in data
 
 
@@ -456,7 +456,7 @@ class TestCandidateEndpoints:
         )
 
         assert response.status_code == status.HTTP_404_NOT_FOUND
-        assert "No candidate found" in response.json()["detail"]
+        assert "No candidate found" in response.json()["message"]
 
     def test_put_candidate_unauthorized(self):
         """Test updating another user's candidate."""
@@ -496,7 +496,7 @@ class TestCandidateEndpoints:
         )
 
         assert response.status_code == status.HTTP_403_FORBIDDEN
-        assert "Unauthorized" in response.json()["detail"]
+        assert "Unable to alter" in response.json()["message"]
 
     def test_delete_candidate_single(self):
         """Test deleting a single candidate."""
@@ -582,7 +582,7 @@ class TestCandidateEndpoints:
         )
 
         assert response.status_code == status.HTTP_404_NOT_FOUND
-        assert "No candidate found" in response.json()["detail"]
+        assert "No candidate found" in response.json()["message"]
 
     def test_delete_candidate_unauthorized(self):
         """Test deleting another user's candidate."""
@@ -615,7 +615,7 @@ class TestCandidateEndpoints:
         )
 
         assert response.status_code == status.HTTP_403_FORBIDDEN
-        assert "Unauthorized" in response.json()["detail"]
+        assert "Unauthorized" in response.json()["message"]
 
     def test_candidate_unauthorized_access(self):
         """Test that unauthorized requests are rejected."""
@@ -706,9 +706,9 @@ class TestCandidateAPIValidation:
             headers={"api_token": self.admin_token}
         )
 
-        assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
         data = response.json()
-        assert 'Invalid magnitude unit' in response.json()['detail'][0]['msg']
+        assert 'Invalid magnitude unit' in response.json()['errors'][0]['message']
 
 
     def test_invalid_date_format(self):
@@ -731,9 +731,9 @@ class TestCandidateAPIValidation:
             headers={"api_token": self.admin_token}
         )
 
-        assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
         data = response.json()
-        assert 'Invalid discovery_date format' in response.json()['detail'][0]['msg']
+        assert 'Invalid discovery_date format' in response.json()['errors'][0]['message']
 
     def test_missing_position_data(self):
         """Test creating candidate without position or coordinates."""
@@ -754,9 +754,8 @@ class TestCandidateAPIValidation:
             headers={"api_token": self.admin_token}
         )
 
-        assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
-        data = response.json()
-        assert 'Either position or both ra and dec must be provided' in response.json()['detail'][0]['msg']
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert 'Either position or both ra and dec must be provided' in response.json()['errors'][0]['message']
 
 
 class TestCandidateAPIIntegration:

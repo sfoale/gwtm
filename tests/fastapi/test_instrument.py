@@ -96,13 +96,13 @@ class TestInstrumentAPI:
             headers={"api_token": self.admin_token}
         )
         assert response.status_code == status.HTTP_400_BAD_REQUEST
-        assert "Invalid ids format" in response.json()["detail"]
+        assert "Invalid ids format" in response.json()["message"]
 
     def test_get_instruments_without_auth(self):
         """Test that authentication is required."""
         response = requests.get(self.get_url("/instruments"))
         assert response.status_code == status.HTTP_401_UNAUTHORIZED
-        assert "API token is required" in response.json()["detail"]
+        assert "API token is required" in response.json()["message"]
 
     def test_get_instruments_with_invalid_token(self):
         """Test with invalid API token."""
@@ -111,7 +111,7 @@ class TestInstrumentAPI:
             headers={"api_token": self.invalid_token}
         )
         assert response.status_code == status.HTTP_401_UNAUTHORIZED
-        assert "Invalid API token" in response.json()["detail"]
+        assert "Invalid API token" in response.json()["message"]
 
     def test_get_footprints_all(self):
         """Test getting all footprints."""
@@ -246,7 +246,7 @@ class TestInstrumentAPI:
             headers={"api_token": self.admin_token}
         )
         assert response.status_code == status.HTTP_404_NOT_FOUND
-        assert "not found" in response.json()["detail"]
+        assert "not found" in response.json()["message"]
 
     def test_create_footprint_for_others_instrument(self):
         """Test that users can't add footprints to instruments they don't own."""
@@ -261,7 +261,7 @@ class TestInstrumentAPI:
             headers={"api_token": self.user_token}
         )
         assert response.status_code == status.HTTP_403_FORBIDDEN
-        assert "don't have permission" in response.json()["detail"]
+        assert "don't have permission" in response.json()["message"]
 
     def test_create_footprint_without_auth(self):
         """Test that authentication is required for footprint creation."""
@@ -362,8 +362,8 @@ class TestInstrumentAPIValidation:
             json=invalid_instrument,
             headers={"api_token": self.admin_token}
         )
-        assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY  # Validation error
-        assert "Input should be" in response.json()["detail"][0]["msg"]
+        assert response.status_code == status.HTTP_400_BAD_REQUEST  # Validation error
+        assert "Input should be" in response.json()['errors'][0]['message']
 
     def test_missing_required_fields(self):
         """Test creating instrument with missing required fields."""
@@ -376,10 +376,10 @@ class TestInstrumentAPIValidation:
             json=incomplete_instrument,
             headers={"api_token": self.admin_token}
         )
-        assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
-        error_fields = [error["loc"][-1] for error in response.json()["detail"]]
-        assert "instrument_name" in error_fields
-        assert "instrument_type" in error_fields
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        error_fields = [field['params']['field'] for field in response.json()['errors']]
+        assert "instrument_name" in str(error_fields)
+        assert "instrument_type" in str(error_fields)
 
     def test_invalid_footprint_format(self):
         """Test creating footprint with invalid WKT format."""
@@ -393,8 +393,8 @@ class TestInstrumentAPIValidation:
             headers={"api_token": self.admin_token}
         )
         # This should fail at the database level
-        assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
-        assert "Invalid WKT format" in response.json()['detail'][0]['msg']
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert "Invalid WKT format" in response.json()['errors'][0]['message']
 
     def test_empty_name_filter(self):
         """Test behavior with empty name filter."""
