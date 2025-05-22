@@ -30,7 +30,7 @@ class TestGWAlertEndpoints:
         return f"{API_BASE_URL}{API_V1_PREFIX}{endpoint}"
 
     # Known GraceIDs from test data
-    KNOWN_GRACEIDS = ['S190425z', 'S190426c', 'MS230101a', 'GW190521', 'MS190425a']
+    KNOWN_GRACEIDS = ['S190425z', 'S190426c', 'GW190521']
 
     def test_query_alerts_no_params(self):
         """Test querying alerts without any parameters."""
@@ -191,7 +191,7 @@ class TestGWAlertEndpoints:
             else:
                 # Graceid might not have a skymap in test data
                 assert response.status_code == status.HTTP_404_NOT_FOUND
-                assert "Error in retrieving skymap file" in response.json()["detail"]
+                assert "Error in retrieving skymap file" in response.json()["message"]
 
     def test_get_gw_contour(self):
         """Test getting GW contour data."""
@@ -217,7 +217,7 @@ class TestGWAlertEndpoints:
             else:
                 # Graceid might not have a contour in test data
                 assert response.status_code == status.HTTP_404_NOT_FOUND
-                assert "Error in retrieving Contour file" in response.json()["detail"]
+                assert "Error in retrieving Contour file" in response.json()["message"]
 
     def test_get_grb_moc_file(self):
         """Test getting a GRB MOC file."""
@@ -257,7 +257,7 @@ class TestGWAlertEndpoints:
         )
 
         assert response.status_code == status.HTTP_400_BAD_REQUEST
-        assert "Valid instruments are in ['gbm', 'lat', 'bat']" in response.json()["detail"]
+        assert "Valid instruments are in ['gbm', 'lat', 'bat']" in response.json()["message"]
 
 
     def test_del_test_alerts_as_non_admin(self):

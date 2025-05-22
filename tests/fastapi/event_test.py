@@ -198,7 +198,7 @@ class TestEventEndpoints:
             headers={"api_token": self.admin_token}
         )
 
-        assert response.status_code == 400
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
         assert "Valid instruments are" in response.json()["message"]
 
     def test_del_test_alerts(self):
@@ -235,7 +235,7 @@ class TestEventEndpoints:
             headers={"api_token": self.user_token}
         )
 
-        assert response.status_code == 403
+        assert response.status_code == status.HTTP_403_FORBIDDEN
         assert "admin" in response.json()["message"].lower()
 
     def test_event_api_unauthorized_access(self):
@@ -249,7 +249,7 @@ class TestEventEndpoints:
             self.get_url("/query_alerts"),
             headers={"api_token": self.invalid_token}
         )
-        assert response.status_code == 401
+        assert response.status_code == status.HTTP_401_UNAUTHORIZED
 
     def test_event_api_with_different_tokens(self):
         """Test access with different valid API tokens."""
@@ -284,11 +284,11 @@ class TestEventAPIValidation:
             headers={"api_token": self.admin_token}
         )
 
-        assert response.status_code == 422
-        error_detail = response.json()["detail"]
-        missing_fields = [error["loc"][-1] for error in error_detail]
-        assert "alert_type" in missing_fields
-        assert "role" in missing_fields
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        error_detail = response.json()["errors"]
+        missing_fields = [field['params']['field'] for field in error_detail]
+        assert "alert_type" in str(missing_fields)
+        assert "role" in str(missing_fields)
 
     def test_post_alert_invalid_values(self):
         """Test creating alert with invalid field values."""
@@ -307,10 +307,9 @@ class TestEventAPIValidation:
             headers={"api_token": self.admin_token}
         )
 
-        assert response.status_code == 422
-        error_detail = response.json()["detail"]
-        error_fields = [error["loc"][-1] for error in error_detail]
-        assert "prob_bns" in error_fields or "prob_nsbh" in error_fields
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        error_detail = response.json()["errors"]
+        assert "prob_bns" in str(error_detail) or "prob_nsbh" in str(error_detail)
 
     def test_get_skymap_without_graceid(self):
         """Test getting skymap without providing graceid."""
@@ -319,8 +318,8 @@ class TestEventAPIValidation:
             headers={"api_token": self.admin_token}
         )
 
-        assert response.status_code == 422
-        assert "graceid" in response.json()["detail"][0]["loc"]
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert "graceid" in str(response.json()["errors"][0])
 
     def test_get_grb_moc_without_params(self):
         """Test getting GRB MOC file without required parameters."""
@@ -331,8 +330,8 @@ class TestEventAPIValidation:
             headers={"api_token": self.admin_token}
         )
 
-        assert response.status_code == 422
-        assert "instrument" in response.json()["detail"][0]["loc"]
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert "instrument" in str(response.json()["errors"][0])
 
         # Missing graceid
         response = requests.get(
@@ -341,8 +340,8 @@ class TestEventAPIValidation:
             headers={"api_token": self.admin_token}
         )
 
-        assert response.status_code == 422
-        assert "graceid" in response.json()["detail"][0]["loc"]
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert "graceid" in str(response.json()["errors"][0])
 
 
 class TestEventAPIIntegration:

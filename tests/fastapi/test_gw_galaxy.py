@@ -42,7 +42,7 @@ class TestGWGalaxyEndpoints:
         )
 
         # Should fail with 422 - Missing required parameter
-        assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
 
     def test_get_event_galaxies_with_graceid(self):
         """Test getting event galaxies with valid graceid."""
@@ -70,7 +70,7 @@ class TestGWGalaxyEndpoints:
         )
 
         assert response.status_code == status.HTTP_400_BAD_REQUEST
-        assert "Error parsing date" in response.json()["detail"]
+        assert "Error parsing date" in response.json()["message"]
 
     def test_get_event_galaxies_with_nonexistent_timesent(self):
         """Test getting event galaxies with timestamp that doesn't match any alert."""
@@ -84,7 +84,7 @@ class TestGWGalaxyEndpoints:
         )
 
         assert response.status_code == status.HTTP_400_BAD_REQUEST
-        assert "Invalid 'timesent_stamp' for event" in response.json()["detail"]
+        assert "Invalid 'timesent_stamp' for event" in response.json()["message"]
 
     def test_get_event_galaxies_with_score_filters(self):
         """Test getting event galaxies with score filters."""
