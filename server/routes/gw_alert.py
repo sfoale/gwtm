@@ -1,12 +1,11 @@
 import io
-import json
 from datetime import datetime, timedelta
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, Query, HTTPException
+from fastapi import APIRouter, Depends, Query
 from fastapi.openapi.models import Response
 
-from server.utils.error_handling import not_found_exception
+from server.utils.error_handling import not_found_exception, validation_exception
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
@@ -144,10 +143,7 @@ async def get_gw_skymap(
             }
         )
     except Exception as e:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Error in retrieving skymap file: {skymap_path}"
-        )
+        raise not_found_exception(f"Error in retrieving skymap file: {skymap_path}")
 
 @router.get("/gw_contour")
 async def get_gw_contour(
@@ -187,7 +183,7 @@ async def get_gw_contour(
         file_content = download_gwtm_file(filename=contour_path, source=settings.STORAGE_BUCKET_SOURCE, config=settings)
         return Response(content=file_content, media_type="application/json")
     except Exception as e:
-        raise HTTPException(status_code=404, detail=f"Error in retrieving Contour file: {contour_path}")
+        raise not_found_exception(f"Error in retrieving Contour file: {contour_path}")
 
 @router.get("/grb_moc_file")
 async def get_grbmoc(
@@ -211,10 +207,7 @@ async def get_grbmoc(
     # Validate instrument
     instrument = instrument.lower()
     if instrument not in ['gbm', 'lat', 'bat']:
-        raise HTTPException(
-            status_code=400,
-            detail="Valid instruments are in ['gbm', 'lat', 'bat']"
-        )
+        raise validation_exception("Valid instruments are in ['gbm', 'lat', 'bat']")
 
     # Map instrument names to their full names
     instrument_dictionary = {'gbm': 'Fermi', 'lat': 'LAT', 'bat': 'BAT'}
@@ -226,10 +219,7 @@ async def get_grbmoc(
         file_content = download_gwtm_file(filename=moc_filepath, source=settings.STORAGE_BUCKET_SOURCE, config=settings)
         return Response(content=file_content, media_type="application/json")
     except Exception as e:
-        raise HTTPException(
-            status_code=404,
-            detail=f"MOC file for GW-Alert: '{graceid}' and instrument: '{instrument}' does not exist!"
-        )
+        raise not_found_exception(f"MOC file for GW-Alert: '{graceid}' and instrument: '{instrument}' does not exist!")
 
 
 @router.post("/del_test_alerts")

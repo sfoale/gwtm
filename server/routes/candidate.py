@@ -135,7 +135,7 @@ async def post_gw_candidates(
     valid_alerts = db.query(GWAlert).filter(GWAlert.graceid == post_request.graceid).all()
     if len(valid_alerts) == 0:
         raise HTTPException(
-            status_code=400,
+            status_code=HTTPException.HTTP_400_BAD_REQUEST,
             detail="Invalid 'graceid'. Visit https://treasuremap.space/alert_select for valid alerts"
         )
 
@@ -287,13 +287,13 @@ async def delete_candidates(
         candidate = db.query(GWCandidate).filter(GWCandidate.id == delete_params.id).first()
         if not candidate:
             raise HTTPException(
-                status_code=404,
+                status_code=HTTPException.HTTP_404_NOT_FOUND,
                 detail=f"No candidate found with 'id': {delete_params.id}"
             )
 
         if candidate.submitterid != user.id:
             raise HTTPException(
-                status_code=403,
+                status_code=HTTPException.HTTP_403_FORBIDDEN,
                 detail="Error: Unauthorized. Unable to alter other user's records"
             )
 

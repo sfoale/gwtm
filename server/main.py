@@ -65,7 +65,7 @@ async def lifespan_middleware(request: Request, call_next):
         if response is None:
             # Create a default error response
             response = JSONResponse(
-                status_code=500,
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 content={"detail": "Internal server error"}
             )
         return response
