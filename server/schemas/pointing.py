@@ -131,7 +131,7 @@ class PointingSchema(PointingBase):
     datecreated: Optional[datetime] = None
     dateupdated: Optional[datetime] = None
     doi_url: Optional[str] = None
-    doi_id: Optional[int] = None
+    doi_id: Optional[str] = None
 
     model_config = ConfigDict(
         from_attributes=True,

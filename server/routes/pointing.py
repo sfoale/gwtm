@@ -1,5 +1,7 @@
 # server/routes/pointing.py
 from fastapi import APIRouter, Depends, Query, Body, HTTPException
+
+from server.db.models.doi_author import DOIAuthor
 from server.utils.error_handling import validation_exception, not_found_exception, permission_exception
 from sqlalchemy.orm import Session
 from sqlalchemy import func, or_
@@ -35,7 +37,7 @@ async def add_pointings(
         pointings: Optional[List[Dict[str, Any]]] = Body(None, description="List of pointing objects"),
         request_doi: Optional[bool] = Body(False, description="Whether to request a DOI"),
         creators: Optional[List[Dict[str, str]]] = Body(None, description="List of creators for the DOI"),
-        doi_group_id: Optional[str] = Body(None, description="DOI author group ID"),
+        doi_group_id: Optional[int] = Body(None, description="DOI author group ID"),
         doi_url: Optional[str] = Body(None, description="Optional DOI URL if already exists"),
         db: Session = Depends(get_db),
         user=Depends(get_current_user)
@@ -966,12 +968,12 @@ def get_pointings(
 
         return {"message": f"Updated {pointing_count} Pointings successfully"}
 
-    @router.post("/request_doi")
+    @router.post("/request_doi", response_model=DOIRequestResponse)
     async def request_doi(
             graceid: Optional[str] = Body(None, description="Grace ID of the GW event"),
             id: Optional[int] = Body(None, description="Pointing ID"),
             ids: Optional[List[int]] = Body(None, description="List of pointing IDs"),
-            doi_group_id: Optional[int] = Body(None, description="DOI author group ID"),
+            doi_group_id: Optional[str] = Body(None, description="DOI author group ID"),
             creators: Optional[List[Dict[str, str]]] = Body(None, description="List of creators for the DOI"),
             doi_url: Optional[str] = Body(None, description="Optional DOI URL if already exists"),
             db: Session = Depends(get_db),
@@ -991,15 +993,15 @@ def get_pointings(
         Returns:
         - DOI URL and warnings
         """
-        # Build the filter for pointings
-        filter_conditions = [Pointing.submitterid == user.id]
+        # Build the filter for pointings - always join with PointingEvent
+        filter_conditions = [
+            Pointing.submitterid == user.id,
+            Pointing.id == PointingEvent.pointingid  # Always join with PointingEvent
+        ]
 
         # Handle graceid
         if graceid:
-            # Normalize the graceid
             graceid = GWAlert.graceidfromalternate(graceid)
-            # Add the join condition
-            filter_conditions.append(Pointing.id == PointingEvent.pointingid)
             filter_conditions.append(PointingEvent.graceid == graceid)
 
         # Handle id or ids
@@ -1008,21 +1010,24 @@ def get_pointings(
         elif ids:
             filter_conditions.append(Pointing.id.in_(ids))
 
-        if len(filter_conditions) == 1:  # Only the user filter
+        if len([f for f in filter_conditions if
+                'graceid' in str(f) or 'Pointing.id' in str(f)]) == 1:  # Only the join condition
             raise validation_exception(
                 message="Insufficient filter parameters",
                 errors=["Please provide either graceid, id, or ids parameter"]
             )
 
-        # Query the pointings
-        points = db.query(Pointing).filter(*filter_conditions).all()
+        # Query the pointings with explicit join
+        points = db.query(Pointing).join(
+            PointingEvent, Pointing.id == PointingEvent.pointingid
+        ).filter(*filter_conditions).all()
 
         # Validate and prepare for DOI request
         warnings = []
         doi_points = []
 
         for p in points:
-            if p.status == pointing_status_enum.completed and p.submitterid == user.id and p.doi_id is None:
+            if p.status == "completed" and p.submitterid == user.id and p.doi_id is None:
                 doi_points.append(p)
             else:
                 warnings.append(f"Invalid doi request for pointing: {p.id}")
@@ -1037,10 +1042,11 @@ def get_pointings(
         insts = db.query(Instrument).filter(Instrument.id.in_([x.instrumentid for x in doi_points]))
         inst_set = list(set([x.instrument_name for x in insts]))
 
-        # Get the GW event IDs
-        gids = list(set([x.graceid for x in db.query(PointingEvent).filter(
+        # Get the GW event IDs - this should now work since we joined with PointingEvent
+        pointing_events = db.query(PointingEvent).filter(
             PointingEvent.pointingid.in_([x.id for x in doi_points])
-        )]))
+        ).all()
+        gids = list(set([pe.graceid for pe in pointing_events]))
 
         if len(gids) > 1:
             raise validation_exception(
@@ -1053,17 +1059,17 @@ def get_pointings(
         # Handle DOI creators
         if not creators:
             if doi_group_id:
-                # Using the construct_creators function from the DOIAuthor model
-                from server.db.models.doi_author import DOIAuthor
-                valid, creators = DOIAuthor.construct_creators(doi_group_id, user.id, db)
+                valid, creators_list = DOIAuthor.construct_creators(doi_group_id, user.id, db)
                 if not valid:
                     raise validation_exception(
                         message="Invalid DOI group ID",
                         errors=["Make sure you are the User associated with the DOI group"]
                     )
+                creators = creators_list
             else:
                 # Default to user as creator
-                creators = [{"name": f"{user.firstname} {user.lastname}", "affiliation": ""}]
+                user_record = db.query(Users).filter(Users.id == user.id).first()
+                creators = [{"name": f"{user_record.firstname} {user_record.lastname}", "affiliation": ""}]
         else:
             # Validate creators
             for c in creators:
@@ -1089,6 +1095,3 @@ def get_pointings(
                 p.doi_id = doi_id
 
             db.commit()
-
-        return {"DOI_URL": doi_url, "WARNINGS": warnings}
-

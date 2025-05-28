@@ -1,5 +1,8 @@
+import json
+
 from fastapi import APIRouter, Depends, Request, Response, Body
 from server.utils.error_handling import validation_exception, not_found_exception, permission_exception
+from server.core.enums.pointing_status import pointing_status as pointing_status_enum
 from sqlalchemy.orm import Session
 from typing import List, Dict, Optional
 
@@ -76,8 +79,9 @@ async def request_doi(
     warnings = []
     doi_points = []
 
+    print(f'Dump of points: {points}')
     for p in points:
-        if p.status == "completed" and p.submitterid == user.id and p.doi_id is None:
+        if p.status == pointing_status_enum.completed and p.submitterid == user.id and p.doi_id is None:
             doi_points.append(p)
         else:
             warnings.append(f"Invalid doi request for pointing: {p.id}")
