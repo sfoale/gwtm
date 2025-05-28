@@ -20,6 +20,7 @@ from server.schemas.pointing import (
     PointingResponse,
     PointingUpdate
 )
+from server.schemas.doi import DOIRequestResponse
 from server.auth.auth import get_current_user
 from server.utils.function import pointing_crossmatch, create_pointing_doi
 from server.core.enums.pointing_status import pointing_status as pointing_status_enum
@@ -1010,8 +1011,11 @@ def get_pointings(
         elif ids:
             filter_conditions.append(Pointing.id.in_(ids))
 
-        if len([f for f in filter_conditions if
-                'graceid' in str(f) or 'Pointing.id' in str(f)]) == 1:  # Only the join condition
+        # Check if we have sufficient filtering parameters
+        has_graceid_filter = any('graceid' in str(f) for f in filter_conditions)
+        has_id_filter = any('Pointing.id ==' in str(f) or 'Pointing.id.in_' in str(f) for f in filter_conditions)
+
+        if not has_graceid_filter and not has_id_filter:
             raise validation_exception(
                 message="Insufficient filter parameters",
                 errors=["Please provide either graceid, id, or ids parameter"]
@@ -1027,10 +1031,18 @@ def get_pointings(
         doi_points = []
 
         for p in points:
-            if p.status == "completed" and p.submitterid == user.id and p.doi_id is None:
+            # Check if pointing is completed, owned by user, and doesn't already have a DOI
+            if p.status == pointing_status_enum.completed and p.submitterid == user.id and p.doi_id is None:
                 doi_points.append(p)
             else:
-                warnings.append(f"Invalid doi request for pointing: {p.id}")
+                warning_msg = f"Invalid doi request for pointing: {p.id}"
+                if p.status != pointing_status_enum.completed:
+                    warning_msg += f" (status: {p.status})"
+                if p.submitterid != user.id:
+                    warning_msg += " (not owned by user)"
+                if p.doi_id is not None:
+                    warning_msg += " (already has DOI)"
+                warnings.append(warning_msg)
 
         if len(doi_points) == 0:
             raise validation_exception(
@@ -1039,7 +1051,7 @@ def get_pointings(
             )
 
         # Get the instruments
-        insts = db.query(Instrument).filter(Instrument.id.in_([x.instrumentid for x in doi_points]))
+        insts = db.query(Instrument).filter(Instrument.id.in_([x.instrumentid for x in doi_points])).all()
         inst_set = list(set([x.instrument_name for x in insts]))
 
         # Get the GW event IDs - this should now work since we joined with PointingEvent
@@ -1095,3 +1107,7 @@ def get_pointings(
                 p.doi_id = doi_id
 
             db.commit()
+
+        # Import the response model
+        from server.schemas.doi import DOIRequestResponse
+        return DOIRequestResponse(DOI_URL=doi_url, WARNINGS=warnings)

@@ -163,15 +163,16 @@ async def get_doi_pointings(
     Returns:
     - List of pointings with DOI information
     """
-    # Query pointings with DOIs
+    # Query pointings with DOIs, ensuring we only get pointings that actually have DOI information
     pointings = db.query(Pointing).filter(
         Pointing.submitterid == user.id,
-        Pointing.doi_id != None  # Pointings that have a DOI
+        Pointing.doi_id.isnot(None),  # Changed from != None to .isnot(None) for proper SQLAlchemy syntax
+        Pointing.doi_url.isnot(None)   # Also check that doi_url is not None
     ).all()
 
     result = []
     for pointing in pointings:
-        # Get event information
+        # Get event information - need to join with PointingEvent to get graceid
         pointing_events = db.query(PointingEvent).filter(PointingEvent.pointingid == pointing.id).all()
         graceid = pointing_events[0].graceid if pointing_events else "Unknown"
 
@@ -179,17 +180,19 @@ async def get_doi_pointings(
         instrument = db.query(Instrument).filter(Instrument.id == pointing.instrumentid).first()
         instrument_name = instrument.instrument_name if instrument else "Unknown"
 
+        # Convert status enum to string if needed
+        status_str = pointing.status.name if hasattr(pointing.status, 'name') else str(pointing.status)
+
         result.append(DOIPointingInfo(
             id=pointing.id,
             graceid=graceid,
             instrument_name=instrument_name,
-            status=pointing.status,
+            status=status_str,
             doi_url=pointing.doi_url,
             doi_id=pointing.doi_id
         ))
 
     return DOIPointingsResponse(pointings=result)
-
 
 @router.get("/doi_author_groups", response_model=List[DOIAuthorGroupSchema])
 async def get_doi_author_groups(
