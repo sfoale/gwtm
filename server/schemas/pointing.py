@@ -147,13 +147,22 @@ class PointingSchema(PointingBase):
 
 class PointingUpdate(BaseModel):
     """Schema for updating a pointing."""
-    status: Optional[Union[pointing_status_enum, str]] = None
-    ids: Optional[List[int]] = None
+    status: Union[pointing_status_enum, str]
+    ids: List[int]
 
     @field_validator("status", mode="before")
     @classmethod
     def validate_status(cls, value):
-        if isinstance(value, pointing_status_enum):
-            return value.value  # Convert enum to its name (e.g., "completed")
-        return value
+        """Validate and convert status to enum."""
+        if isinstance(value, str):
+            try:
+                return pointing_status_enum[value]
+            except KeyError:
+                raise ValueError(f"Invalid status: {value}. Must be one of: {list(pointing_status_enum.__members__.keys())}")
+        elif isinstance(value, pointing_status_enum):
+            return value
+        else:
+            raise ValueError(f"Status must be string or enum, got {type(value)}")
+
+    model_config = ConfigDict(from_attributes=True)
 

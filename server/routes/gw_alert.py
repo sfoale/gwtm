@@ -21,6 +21,8 @@ from server.db.models.pointing_event import PointingEvent
 from server.db.models.gw_galaxy import GWGalaxyEntry
 from server.db.models.candidate import GWCandidate
 
+
+
 router = APIRouter(tags=["gw_alerts"])
 
 @router.get("/query_alerts", response_model=List[GWAlertSchema])
@@ -43,9 +45,7 @@ async def query_alerts(
     filter_conditions = []
 
     if graceid:
-        # Handle alternative GraceID format if needed
-        # Implementation will depend on the graceidfromalternate function
-        filter_conditions.append(GWAlert.graceid == graceid)
+        filter_conditions.append(GWAlert.graceid == GWAlert.graceidfromalternate(graceid))
 
     if alert_type:
         filter_conditions.append(GWAlert.alert_type == alert_type)
