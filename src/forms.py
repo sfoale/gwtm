@@ -2,6 +2,7 @@ import astropy
 import pandas as pd
 import json
 import time
+from io import StringIO
 
 from astropy.coordinates import get_body
 from flask_wtf import FlaskForm
@@ -249,6 +250,9 @@ class AlertsForm(FlaskForm):
     GRBoverlays = []
     has_icecube = False
     has_candidate = False
+    calc_ids = ["calc-info",
+                "calc-coverage",
+                "calc-renorm-skymap"]
 
     def construct_alertform(self, args):
         
@@ -415,7 +419,13 @@ class AlertsForm(FlaskForm):
 
             self.inst_cov = []
             for inst in [x for x in instrumentinfo if x.id != 49]:
-                self.inst_cov.append({'name':inst.nickname if inst.nickname is not None else inst.instrument_name, 'value':inst.id})
+                print(inst.nickname, inst.instrument_name, inst.id)
+                inst_name = inst.instrument_name
+                if inst.nickname is not None and inst.nickname != "":
+                    inst_name = inst.nickname
+                self.inst_cov.append({'name':inst_name, 'value':inst.id})
+
+            print(self.inst_cov)
 
             self.depth_unit=[]
             for dp in list(set([x.depth_unit for x in pointing_info if x.status == enums.pointing_status.completed and x.instrumentid != 49 and x.depth_unit is not None])):
@@ -514,10 +524,12 @@ class AlertsForm(FlaskForm):
             self.avgra = self.selected_alert_info.avgra
             self.avgdec = self.selected_alert_info.avgdec
 
+            #load normal skymap
             contourpath = f'{s3path}/'+path_info+'-contours-smooth.json'
             self.mappathinfo = mappathinfo
             #if it exists, add it to the overlay list
             try:
+                
                 f = gwtm_io.download_gwtm_file(contourpath, config.STORAGE_BUCKET_SOURCE, config)
                 contours_data = pd.read_json(f)
                 contour_geometry = []
