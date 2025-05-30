@@ -20,7 +20,10 @@ from server.schemas.pointing import (
     PointingResponse,
     PointingUpdate
 )
-from server.schemas.doi import DOIRequestResponse
+from server.schemas.doi import (
+    DOIRequestSchema,
+    DOIRequestResponse
+)
 from server.auth.auth import get_current_user
 from server.utils.function import pointing_crossmatch, create_pointing_doi
 from server.core.enums.pointing_status import pointing_status as pointing_status_enum
@@ -966,31 +969,24 @@ async def cancel_all(
 
     return {"message": f"Updated {pointing_count} Pointings successfully"}
 
+
 @router.post("/request_doi", response_model=DOIRequestResponse)
 async def request_doi(
-        graceid: Optional[str] = Body(None, description="Grace ID of the GW event"),
-        id: Optional[int] = Body(None, description="Pointing ID"),
-        ids: Optional[List[int]] = Body(None, description="List of pointing IDs"),
-        doi_group_id: Optional[str] = Body(None, description="DOI author group ID"),
-        creators: Optional[List[Dict[str, str]]] = Body(None, description="List of creators for the DOI"),
-        doi_url: Optional[str] = Body(None, description="Optional DOI URL if already exists"),
+        request_data: DOIRequestSchema,
         db: Session = Depends(get_db),
         user=Depends(get_current_user)
 ):
     """
     Request a DOI for completed pointings.
 
-    Parameters:
-    - graceid: Grace ID of the GW event
-    - id: Single pointing ID
-    - ids: List of pointing IDs
-    - doi_group_id: DOI author group ID
-    - creators: List of creators for the DOI
-    - doi_url: Optional DOI URL if already exists
+    Uses a Pydantic schema for request validation and documentation.
 
     Returns:
     - DOI URL and warnings
     """
+    # Import the schema
+    from server.schemas.doi import DOIRequestSchema, DOIRequestResponse
+
     # Build the filter for pointings - always join with PointingEvent
     filter_conditions = [
         Pointing.submitterid == user.id,
@@ -998,25 +994,15 @@ async def request_doi(
     ]
 
     # Handle graceid
-    if graceid:
-        graceid = GWAlert.graceidfromalternate(graceid)
+    if request_data.graceid:
+        graceid = GWAlert.graceidfromalternate(request_data.graceid)
         filter_conditions.append(PointingEvent.graceid == graceid)
 
-    # Handle id or ids
-    if id:
-        filter_conditions.append(Pointing.id == id)
-    elif ids:
-        filter_conditions.append(Pointing.id.in_(ids))
-
-    # Check if we have sufficient filtering parameters
-    has_graceid_filter = any('graceid' in str(f) for f in filter_conditions)
-    has_id_filter = any('Pointing.id ==' in str(f) or 'Pointing.id.in_' in str(f) for f in filter_conditions)
-
-    if not has_graceid_filter and not has_id_filter:
-        raise validation_exception(
-            message="Insufficient filter parameters",
-            errors=["Please provide either graceid, id, or ids parameter"]
-        )
+    # Handle id or ids (validation ensures only one is provided)
+    if request_data.id:
+        filter_conditions.append(Pointing.id == request_data.id)
+    elif request_data.ids:
+        filter_conditions.append(Pointing.id.in_(request_data.ids))
 
     # Query the pointings with explicit join
     points = db.query(Pointing).join(
@@ -1034,7 +1020,7 @@ async def request_doi(
         else:
             warning_msg = f"Invalid doi request for pointing: {p.id}"
             if p.status != pointing_status_enum.completed:
-                warning_msg += f" (status: {p.status})"
+                warning_msg += f" (status: {p.status.name})"
             if p.submitterid != user.id:
                 warning_msg += " (not owned by user)"
             if p.doi_id is not None:
@@ -1066,9 +1052,10 @@ async def request_doi(
     gid = gids[0]
 
     # Handle DOI creators
+    creators = request_data.creators
     if not creators:
-        if doi_group_id:
-            valid, creators_list = DOIAuthor.construct_creators(doi_group_id, user.id, db)
+        if request_data.doi_group_id:
+            valid, creators_list = DOIAuthor.construct_creators(request_data.doi_group_id, user.id, db)
             if not valid:
                 raise validation_exception(
                     message="Invalid DOI group ID",
@@ -1080,17 +1067,12 @@ async def request_doi(
             user_record = db.query(Users).filter(Users.id == user.id).first()
             creators = [{"name": f"{user_record.firstname} {user_record.lastname}", "affiliation": ""}]
     else:
-        # Validate creators
-        for c in creators:
-            if "name" not in c or "affiliation" not in c:
-                raise validation_exception(
-                    message="Invalid DOI creator information",
-                    errors=["name and affiliation are required for each creator in the list"]
-                )
+        # Convert Pydantic models to dictionaries for the DOI creation function
+        creators = [creator.model_dump() for creator in creators]
 
     # Create or use provided DOI
-    if doi_url:
-        doi_id, doi_url = 0, doi_url
+    if request_data.doi_url:
+        doi_id, doi_url = 0, request_data.doi_url
     else:
         # Get the alternate form of the graceid
         gid = GWAlert.alternatefromgraceid(gid)
@@ -1105,6 +1087,4 @@ async def request_doi(
 
         db.commit()
 
-    # Import the response model
-    from server.schemas.doi import DOIRequestResponse
     return DOIRequestResponse(DOI_URL=doi_url, WARNINGS=warnings)

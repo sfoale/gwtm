@@ -254,7 +254,7 @@ class TestDOIEndpoints:
         )
         
         assert response.status_code == status.HTTP_400_BAD_REQUEST
-        assert "Invalid DOI creator" in response.json()["message"]
+        assert "Request validation error" in response.json()["message"]
 
     def test_request_doi_with_insufficient_params(self):
         """Test requesting a DOI with insufficient parameters."""
@@ -275,7 +275,7 @@ class TestDOIEndpoints:
         )
         
         assert response.status_code == status.HTTP_400_BAD_REQUEST
-        assert "Insufficient filter parameters" in response.json()["message"]
+        assert "Request validation error" in response.json()["message"]
 
     def test_request_doi_for_others_pointings(self):
         """Test that user can only request DOIs for their own pointings."""
