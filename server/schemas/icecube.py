@@ -1,4 +1,4 @@
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, field_validator
 from typing import Optional, List
 from datetime import datetime
 
@@ -6,7 +6,7 @@ class IceCubeNoticeCreateSchema(BaseModel):
     """Schema for creating IceCube notices (without id)."""
     ref_id: str
     graceid: str
-    alert_datetime: Optional[datetime] = None
+    alert_datetime: datetime  # Make this required instead of optional
     observation_start: Optional[datetime] = None
     observation_stop: Optional[datetime] = None
     pval_generic: Optional[float] = None
@@ -17,6 +17,22 @@ class IceCubeNoticeCreateSchema(BaseModel):
     flux_sens_high: Optional[float] = None
     sens_energy_range_low: Optional[float] = None
     sens_energy_range_high: Optional[float] = None
+
+    @field_validator('ref_id')
+    @classmethod
+    def validate_ref_id(cls, v):
+        """Validate that ref_id is not empty."""
+        if not v or not v.strip():
+            raise ValueError('ref_id cannot be empty')
+        return v.strip()
+
+    @field_validator('graceid')
+    @classmethod
+    def validate_graceid(cls, v):
+        """Validate that graceid is not empty."""
+        if not v or not v.strip():
+            raise ValueError('graceid cannot be empty')
+        return v.strip()
 
     model_config = ConfigDict(from_attributes=True)
 

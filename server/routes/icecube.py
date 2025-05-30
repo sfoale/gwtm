@@ -12,6 +12,7 @@ from server.schemas.icecube import (
     PostIceCubeNoticeResponse
 )
 from server.auth.auth import get_current_user, verify_admin
+from server.utils.error_handling import validation_exception
 
 router = APIRouter(tags=["icecube"])
 
@@ -35,9 +36,10 @@ async def post_icecube_notice(
     ).first()
     
     if existing_notice:
-        return PostIceCubeNoticeResponse(
-            icecube_notice=existing_notice,
-            icecube_notice_events=[]
+        # Instead of returning the existing notice, raise an error for duplicates
+        raise validation_exception(
+            message="Duplicate IceCube notice",
+            errors=[f"IceCube notice with ref_id '{request.notice_data.ref_id}' already exists"]
         )
     
     # Set required fields that might not be in the input data

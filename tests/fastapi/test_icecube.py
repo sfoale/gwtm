@@ -123,43 +123,46 @@ class TestIceCubeEndpoints:
     def test_post_duplicate_icecube_notice(self):
         """Test posting a duplicate IceCube notice."""
         # First post a notice
-        ref_id = f"IceCube-{datetime.datetime.now().strftime('%Y%m%d%H%M%S')}"
-        
+        ref_id = f"IceCube-duplicate-{datetime.datetime.now().strftime('%Y%m%d%H%M%S')}"
+
         notice_data = {
             "ref_id": ref_id,
             "graceid": "S190425z",
             "alert_datetime": datetime.datetime.now().isoformat()
         }
-        
+
         events_data = [{
             "event_dt": 0.5,
             "ra": 123.456,
             "dec": -12.345
         }]
-        
+
         data = {
             "notice_data": notice_data,
             "events_data": events_data
         }
-        
+
+        # First submission should succeed
         response = requests.post(
             self.get_url("/post_icecube_notice"),
             json=data,
             headers={"api_token": self.admin_token}
         )
-        
+
         assert response.status_code == status.HTTP_200_OK
-        
-        # Now post again with the same ref_id
+
+        # Now post again with the same ref_id - this should fail
         response = requests.post(
             self.get_url("/post_icecube_notice"),
             json=data,
             headers={"api_token": self.admin_token}
         )
-        
-        assert response.status_code == status.HTTP_200_OK
-        result = response.json()
-        assert "event already exists" in result["icecube_notice"]["message"]
+
+        # Should fail with 400 Bad Request due to duplicate ref_id
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        error_response = response.json()
+        assert "Duplicate IceCube notice" in error_response["message"]
+        assert f"ref_id '{ref_id}' already exists" in error_response["errors"][0]["message"]
 
     def test_post_icecube_notice_invalid_graceid(self):
         """Test posting an IceCube notice with an invalid GraceID."""
@@ -201,33 +204,96 @@ class TestIceCubeEndpoints:
 
     def test_post_icecube_notice_missing_fields(self):
         """Test posting an IceCube notice with missing required fields."""
-        # Post with minimal required fields according to schema
         ref_id = f"IceCube-{datetime.datetime.now().strftime('%Y%m%d%H%M%S')}"
-        
+
+        # Test 1: Missing alert_datetime (required field)
         notice_data = {
             "ref_id": ref_id,
             "graceid": "S190425z"
-            # Missing other fields, but they are Optional in the schema
+            # Missing alert_datetime which is now required
         }
-        
-        events_data = []  # No events
-        
+
+        events_data = []
+
         data = {
             "notice_data": notice_data,
             "events_data": events_data
         }
-        
+
         response = requests.post(
             self.get_url("/post_icecube_notice"),
             json=data,
             headers={"api_token": self.admin_token}
         )
-        
-        assert response.status_code == status.HTTP_200_OK
-        result = response.json()
-        assert "icecube_notice" in result
-        assert result["icecube_notice"]["ref_id"] == ref_id
-        assert len(result["icecube_notice_events"]) == 0
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        error_response = response.json()
+        assert "Request validation error" in error_response["message"]
+        # Check that the error mentions the missing field
+        missing_fields = [field['params']['field'] for field in error_response['errors']]
+        assert "notice_data.alert_datetime" in str(missing_fields)
+
+    def test_post_icecube_notice_empty_required_fields(self):
+        """Test posting an IceCube notice with empty required fields."""
+        ref_id = f"IceCube-{datetime.datetime.now().strftime('%Y%m%d%H%M%S')}"
+
+        # Test with empty ref_id
+        notice_data = {
+            "ref_id": "",  # Empty ref_id should fail validation
+            "graceid": "S190425z",
+            "alert_datetime": datetime.datetime.now().isoformat()
+        }
+
+        events_data = []
+
+        data = {
+            "notice_data": notice_data,
+            "events_data": events_data
+        }
+
+        response = requests.post(
+            self.get_url("/post_icecube_notice"),
+            json=data,
+            headers={"api_token": self.admin_token}
+        )
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        error_response = response.json()
+        assert "Request validation error" in error_response["message"]
+        # Check that the error mentions ref_id validation
+        errors = [error['message'] for error in error_response['errors']]
+        assert any("ref_id cannot be empty" in error for error in errors)
+
+    def test_post_icecube_notice_empty_graceid(self):
+        """Test posting an IceCube notice with empty graceid."""
+        ref_id = f"IceCube-{datetime.datetime.now().strftime('%Y%m%d%H%M%S')}"
+
+        # Test with empty graceid
+        notice_data = {
+            "ref_id": ref_id,
+            "graceid": "",  # Empty graceid should fail validation
+            "alert_datetime": datetime.datetime.now().isoformat()
+        }
+
+        events_data = []
+
+        data = {
+            "notice_data": notice_data,
+            "events_data": events_data
+        }
+
+        response = requests.post(
+            self.get_url("/post_icecube_notice"),
+            json=data,
+            headers={"api_token": self.admin_token}
+        )
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        error_response = response.json()
+        assert "Request validation error" in error_response["message"]
+        # Check that the error mentions graceid validation
+        errors = [error['message'] for error in error_response['errors']]
+        assert any("graceid cannot be empty" in error for error in errors)
 
     def test_post_icecube_notice_without_auth(self):
         """Test that authentication is required."""
